@@ -63,6 +63,25 @@ jobs:
         run: make "$IMAGE-$OS" PHP_VERSION="$PHP"
       - name: Test (goss)
         run: cd "$IMAGE" && GOSS_SLEEP=8 dgoss run "$IMAGE:$PHP-$OS"
+      # EXPERIMENT: verify `docker stop` is graceful on CI Linux (the SIGQUIT hang was
+      # only seen on Docker Desktop). Fail if the container is SIGKILLed (exit 137) or
+      # takes the full stop timeout. fpm-nginx/fpm-apache carry STOPSIGNAL SIGQUIT;
+      # frankenphp (no s6) is included to confirm its default SIGTERM stop is graceful.
+      - name: Graceful stop
+        run: |
+          cid=$(docker run -d "$IMAGE:$PHP-$OS")
+          sleep 8
+          start=$(date +%s)
+          docker stop -t 15 "$cid"
+          elapsed=$(( $(date +%s) - start ))
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$cid")
+          docker logs "$cid" 2>&1 | tail -20 | sed 's/^/  log: /'
+          docker rm -f "$cid" >/dev/null || true
+          echo "stop: elapsed=${elapsed}s exit=${code}"
+          if [ "$code" = "137" ] || [ "$elapsed" -ge 12 ]; then
+            echo "::error::$IMAGE:$PHP-$OS did not stop gracefully (exit=$code, ${elapsed}s)"
+            exit 1
+          fi
       - name: Log in to GHCR
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3

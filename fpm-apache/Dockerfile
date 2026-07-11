@@ -77,4 +77,7 @@ USER ${SERVER_USER}
 WORKDIR /var/www/html
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["healthcheck"]
+# EXPERIMENT: s6-overlay PID 1 acts on SIGQUIT (not SIGTERM) for shutdown, so docker
+# stop must send SIGQUIT for a graceful stop (services carry down-signal SIGQUIT).
+STOPSIGNAL SIGQUIT
 ENTRYPOINT ["/init"]
