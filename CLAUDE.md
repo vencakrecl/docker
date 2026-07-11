@@ -9,7 +9,7 @@ A collection of Docker images, each in its own directory with a single `Dockerfi
 - `fpm-nginx` - PHP-FPM behind nginx
 - `fpm-apache` - PHP-FPM with Apache
 - `frankenphp` - FrankenPHP
-- `dind` - Docker-in-Docker
+- `dind` - Docker-in-Docker (rootless)
 
 There is no CI yet. Local builds go through the `Makefile` (see Commands below).
 
@@ -21,7 +21,8 @@ See `README.md` for the authoritative scheme. Summary:
 - Architecture is never in the tag — a single tag is a manifest list serving both arches.
 - Tag format is `[<version>-]<os>` (`<os>` = `debian` | `alpine`):
   - PHP images (`fpm-nginx`, `fpm-apache`, `frankenphp`): `<php-version>-<os>`, e.g. `8.3-alpine`.
-  - `dind`: `<docker-version>-<os>`.
+  - `dind`: `<docker-version>-rootless` (single variant; no OS suffix - it is
+    meaningless for dind, and `-rootless` names the meaningful trait).
 - Registry/namespace is not decided yet; images are named without a prefix.
 
 ## Layout and build model
@@ -95,25 +96,26 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
 
 - Requires `goss` + `dgoss` on PATH (the target prints an install hint if absent);
   on macOS also set `GOSS_PATH` to a Linux goss binary. dind runs `--privileged`.
-- What each checks: fpm-nginx (php-fpm+nginx running, `memory_limit`==128M, GET
-  `/ping.php`→404), fpm-apache (php-fpm running, `memory_limit`==128M, GET `/`→403),
-  frankenphp (`memory_limit`==128M, GET `/`→308 Caddy redirect), dind (dockerd
-  running, `docker version` reaches the daemon).
+- What each checks: the web images assert `runs-as-non-root` (`id -u` not 0), PHP
+  CLI executes (`php -r 'echo 40+2'`→42), `memory_limit`==128M, and an HTTP status
+  on `:8080` (fpm-nginx `/ping.php`→404, fpm-apache `/`→403, frankenphp `/`→200);
+  fpm images also check php-fpm/nginx processes. dind: dockerd running + `docker
+  version` reaches the daemon (root by design, no non-root check).
 - Gotchas: goss renders the whole goss.yaml (comments too) as a Go template, so
   never put `{{ }}` in it - e.g. don't use `docker ... --format` with a template;
-  use `docker version` + exit-status instead. Use goss `http` not a raw `port`
-  check for the web images - Apache binds IPv6 on Alpine but IPv4 on Debian, so a
-  single `tcp:80` line can't cover both, and http also tests serving end-to-end.
-  For fpm-apache, don't check the web-server process by name (httpd on Alpine,
-  apache2 on Debian).
+  use `docker version` + exit-status instead. Non-root check: `id -u` with
+  `stdout: ["!/^0$/"]` (goss `!` negation + regex). Use goss `http` not a raw
+  `port` check for the web images - Apache binds IPv6 on Alpine but IPv4 on Debian,
+  and http also tests serving end-to-end. For fpm-apache, don't check the
+  web-server process by name (httpd on Alpine, apache2 on Debian).
 
 ## PHP configuration (common/php.ini)
 
 The PHP images copy `common/php.ini` to `$PHP_INI_DIR/conf.d/zz-common.ini`. PHP
 expands `${...}` in ini files from the environment at parse time and supports a
 `${VAR:-default}` fallback (verified on 8.4), so config is env-overridable at
-runtime with no rebuild - e.g. `memory_limit = ${PHP_MEMORY:-128M}`, overridden
-by `docker run -e PHP_MEMORY=512M`. The default lives in the ini (not in a
+runtime with no rebuild - e.g. `memory_limit = ${PHP_MEMORY_LIMIT:-128M}`, overridden
+by `docker run -e PHP_MEMORY_LIMIT=512M`. The default lives in the ini (not in a
 Dockerfile `ENV`); do not use a bare `${VAR}` (empty value makes PHP warn and
 fall back to 128M). To add a knob: add `key = ${ENV_VAR:-default}` to
 `common/php.ini` - no Dockerfile change. Not applied to `dind` (not a PHP image).
@@ -125,17 +127,27 @@ fall back to 128M). To add a knob: add `key = ${ENV_VAR:-default}` to
   `helper install-s6-overlay`). Services are s6-rc.d longruns under
   `<image>/s6-rc.d/` (php-fpm + the web server), COPYed into
   `/etc/s6-overlay/s6-rc.d`. php-fpm's run script uses `#!/command/with-contenv sh`
-  so `${PHP_MEMORY}` still reaches it at runtime.
+  so `${PHP_MEMORY_LIMIT}` still reaches it at runtime.
   php-fpm listens on 127.0.0.1:9000. Note: setting `ENTRYPOINT` reset the base
   image's inherited `CMD ["php-fpm"]` to empty, so /init runs only the services.
-- `frankenphp`: `dunglas/frankenphp:php<ver>-bookworm|-alpine` base; upstream
-  entrypoint already serves `/app`.
-- `dind`: Alpine = thin layer over `docker:*-dind`; Debian installs the engine
-  via `get.docker.com`. `dind/entrypoint.sh` unifies startup. **First cut** - the
-  Debian path is not version-pinned (not reproducible yet).
+- **Non-root (secure by default):** the web images run unprivileged as `www-data`
+  on port **8080** (`USER www-data`, `EXPOSE 8080`). s6-overlay has "limited"
+  non-root support that works here because there are only two services and no
+  fix-attrs/loggers/syslogd. Requirements: the runtime dirs must be writable by
+  www-data - `chown -R www-data /run <server dirs>` (nginx: `/var/lib/nginx`
+  `/var/log/nginx` which is a symlink `chown -R` won't follow; apache: switch
+  `Listen 80`→`8080` and `User/Group` to www-data per distro, chown
+  `/var/log/apache2`). frankenphp uses `ENV SERVER_NAME=:8080` (plain HTTP, no
+  443/auto-TLS) and chowns `/app /config /data`.
+- `frankenphp`: `dunglas/frankenphp:php<ver>-bookworm|-alpine` base; serves `/app`.
+- `dind`: thin layer over `docker:*-dind-rootless` (daemon runs as the `rootless`
+  user, uid 1000, via rootlesskit). Alpine-only upstream, so dind is a single
+  variant (no debian/alpine split). Base entrypoint/CMD/USER inherited; run the
+  container with `--privileged`. The rootless daemon socket is
+  `/run/user/1000/docker.sock`, so a CLI needs `DOCKER_HOST` pointed there.
 
 ## Status
 
-Building and smoke-tested: `fpm-nginx` (serves PHP), `frankenphp`.
-First cut needing iteration: `fpm-apache` (Alpine best-effort), `dind` (Debian
-engine install, not pinned).
+Building and runtime-tested (goss): all images. Known gap: `fpm-apache` on Alpine
+serves `.php` as source (mod_proxy in a separate `apache2-proxy` package not
+installed); Debian apache is fine.

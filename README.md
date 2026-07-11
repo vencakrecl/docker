@@ -10,7 +10,13 @@ ships in **Debian** and **Alpine** variants.
 | `fpm-nginx`   | PHP-FPM behind nginx      |
 | `fpm-apache`  | PHP-FPM with Apache       |
 | `frankenphp`  | FrankenPHP                |
-| `dind`        | Docker-in-Docker          |
+| `dind`        | Docker-in-Docker (rootless) |
+
+**Secure by default:** the web images (`fpm-nginx`, `fpm-apache`, `frankenphp`)
+run unprivileged as `www-data` and listen on port **8080** (a non-privileged
+port, so no root or capabilities are needed). `dind` is built on the **rootless**
+Docker-in-Docker image, so its daemon also runs as a non-root user (`rootless`,
+uid 1000) - though the container itself still needs `--privileged`.
 
 ## Naming
 
@@ -24,7 +30,7 @@ Tag format is `[<version>-]<os>`, where `<os>` is `debian` or `alpine`.
 | Image                                   | Tag format              | Examples                                 |
 |-----------------------------------------|-------------------------|------------------------------------------|
 | `fpm-nginx`, `fpm-apache`, `frankenphp` | `<php-version>-<os>`    | `8.3-debian`, `8.3-alpine`, `8.4-debian` |
-| `dind`                                  | `<docker-version>-<os>` | `27-debian`, `27-alpine`                 |
+| `dind`                                  | `<docker-version>-rootless` | `29-rootless` (single variant; OS tag is meaningless here) |
 
 ### Architecture
 
@@ -77,7 +83,7 @@ the environment at startup and supports a `${VAR:-default}` fallback, so setting
 carry their default in the ini and are overridable at runtime without a rebuild:
 
 ```sh
-docker run -e PHP_MEMORY=512M ...   # memory_limit = 512M (default 128M)
+docker run -e PHP_MEMORY_LIMIT=512M ...   # memory_limit = 512M (default 128M)
 ```
 
 Add more env-driven settings by adding `key = ${ENV_VAR:-default}` lines to
@@ -115,10 +121,10 @@ binary). What each image checks:
 
 | Image | goss checks |
 |-------|-------------|
-| `fpm-nginx` | php-fpm + nginx running; `memory_limit` == 128M; GET `/ping.php` → 404 (fastcgi chain up) |
-| `fpm-apache` | php-fpm running; `memory_limit` == 128M; GET `/` → 403 (empty docroot) |
-| `frankenphp` | `memory_limit` == 128M; GET `/` → 308 (Caddy http→https redirect) |
-| `dind` | `dockerd` running; `docker version` reaches the daemon (run `--privileged`) |
+| `fpm-nginx` | runs as non-root; php-fpm + nginx running; PHP CLI executes; `memory_limit` == 128M; GET `:8080/ping.php` → 404 (fastcgi chain up) |
+| `fpm-apache` | runs as non-root; php-fpm running; PHP CLI executes; `memory_limit` == 128M; GET `:8080/` → 403 (empty docroot) |
+| `frankenphp` | runs as non-root; PHP CLI executes; `memory_limit` == 128M; GET `:8080/` → 200 |
+| `dind` | runs as non-root (rootless, uid 1000); `dockerd` running; `docker version` reaches the daemon (runs `--privileged`) |
 
 Notes: HTTP is used instead of a raw port check because Apache binds IPv6 on
 Alpine but IPv4 on Debian, and it also exercises the server end-to-end. Avoid
@@ -127,10 +133,11 @@ renders the file as a template first.
 
 ## Status
 
-Building and smoke-tested: `fpm-nginx`, `frankenphp`.
+Building and runtime-tested (goss): all images.
 
-First cut, needs iteration:
-- `fpm-apache` - verified on Debian; Alpine's different Apache layout is best-effort.
-- `dind` - Alpine is a thin layer over the official `docker:*-dind`; there is no
-  upstream Debian dind, so the Debian variant installs the engine via
-  `get.docker.com` (not version-pinned, so not yet reproducible).
+Known gap:
+- `fpm-apache` on **Alpine** serves `.php` as source - Alpine ships mod_proxy in a
+  separate `apache2-proxy` package that isn't installed, so `proxy_fcgi` doesn't
+  load. Debian apache executes PHP correctly. Fix pending.
+- `dind` is a thin layer over `docker:*-dind-rootless` (Alpine only; there is no
+  Debian/rootless upstream, so dind is a single variant).

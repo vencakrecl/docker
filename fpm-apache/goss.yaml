@@ -7,11 +7,20 @@ process:
   php-fpm:
     running: true
 command:
+  runs-as-non-root:
+    exec: id -u
+    exit-status: 0
+    stdout:
+      - "!/^0$/"
+  php-cli-executes:
+    exec: php -r 'echo 40 + 2;'
+    exit-status: 0
+    stdout: ["42"]
   memory-limit:
     exec: php -r 'echo ini_get("memory_limit");'
     exit-status: 0
     stdout: ["128M"]
 http:
-  http://localhost:80/:
+  http://localhost:8080/:
     status: 403
     timeout: 5000

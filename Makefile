@@ -53,12 +53,11 @@ frankenphp-alpine:
 	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-alpine,$(PHP_VERSION)-alpine)
 
 # --- dind --------------------------------------------------------------------
-.PHONY: dind dind-debian dind-alpine
-dind: dind-debian dind-alpine
-dind-debian:
-	$(call build,dind,debian:bookworm-slim,$(DOCKER_VERSION)-debian)
-dind-alpine:
-	$(call build,dind,docker:$(DOCKER_VERSION)-dind,$(DOCKER_VERSION)-alpine)
+# Rootless dind is Alpine-only upstream, so dind is a single variant. The tag is
+# `-rootless` (not an OS): the meaningful trait is that the daemon runs rootless.
+.PHONY: dind
+dind:
+	$(call build,dind,docker:$(DOCKER_VERSION)-dind-rootless,$(DOCKER_VERSION)-rootless)
 
 # --- tests -------------------------------------------------------------------
 # Runtime tests: each image is started and probed with goss (via dgoss) using the
@@ -84,8 +83,9 @@ test-frankenphp: frankenphp-alpine
 	cd frankenphp && $(DGOSS) $(REGISTRY)frankenphp:$(PHP_VERSION)-alpine
 
 .PHONY: test-dind
-test-dind: dind-alpine
-	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-alpine
+test-dind: GOSS_SLEEP = 15   # rootless dind (rootlesskit + network) needs longer to be ready
+test-dind: dind
+	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless
 
 .PHONY: help
 help: ## List the available targets

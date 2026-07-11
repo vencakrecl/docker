@@ -7,7 +7,15 @@ FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
 
-# Shared PHP config; memory_limit is driven by PHP_MEMORY (default in php.ini).
+# Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 
+# Secure by default: run unprivileged as www-data. SERVER_NAME=:8080 makes
+# FrankenPHP/Caddy serve plain HTTP on a high port (no 443/auto-TLS, no root).
+# Caddy writes to /config and /data (XDG dirs); /app is the docroot.
+ENV SERVER_NAME=:8080
+RUN chown -R www-data:www-data /app /config /data
+
+USER www-data
 WORKDIR /app
+EXPOSE 8080

@@ -1,15 +1,20 @@
-# Runtime checks for a running dind container (dgoss run --privileged ...).
-# The Docker daemon must come up and the CLI must reach it.
+# Runtime checks for a running rootless dind container (dgoss run --privileged ...).
+# The daemon runs as the unprivileged "rootless" user (uid 1000) via rootlesskit.
 # NB: goss renders goss.yaml (comments included) through Go templating first, so
-# avoid Go-template brace syntax anywhere here - e.g. `docker ... --format` with
-# a template would break. `docker version` returns non-zero if the daemon is
-# unreachable, so exit-status 0 proves it is up.
+# avoid Go-template brace syntax anywhere here.
+# Rootless dockerd listens on a per-user socket, so DOCKER_HOST must point at it;
+# `docker version` returns non-zero if the daemon is unreachable.
 process:
   dockerd:
     running: true
 command:
+  runs-as-non-root:
+    exec: id -u
+    exit-status: 0
+    stdout:
+      - "!/^0$/"
   docker-server:
-    exec: docker version
+    exec: sh -c 'DOCKER_HOST=unix:///run/user/1000/docker.sock docker version'
     exit-status: 0
     stdout:
       - Server

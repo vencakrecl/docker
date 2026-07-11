@@ -1,21 +1,10 @@
 # syntax=docker/dockerfile:1
-# FIRST CUT - the Alpine variant is a thin layer over the official docker:*-dind
-# image. There is no upstream Debian dind, so the Debian variant installs the
-# Docker Engine via get.docker.com. NOTE: get.docker.com is not pinned, so the
-# Debian build is not fully reproducible yet - pin the Docker apt repo before
-# publishing. Run this image with --privileged.
-# BASE_IMAGE is docker:*-dind (Alpine) or debian:*-slim, set by the Makefile.
-ARG BASE_IMAGE=docker:29-dind
+# Rootless Docker-in-Docker: the Docker daemon runs as the unprivileged "rootless"
+# user (uid 1000) via rootlesskit. Still run the container with --privileged.
+# BASE_IMAGE is docker:*-dind-rootless - Alpine only; there is no Debian/rootless
+# upstream image, so dind is a single (rootless) variant. The base image's
+# entrypoint (dockerd-entrypoint.sh), CMD, USER and EXPOSE are inherited.
+ARG BASE_IMAGE=docker:29-dind-rootless
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
-RUN if ! command -v dockerd >/dev/null 2>&1; then \
-        helper install-packages ca-certificates curl; \
-        curl -fsSL https://get.docker.com | sh; \
-    fi
-
-COPY dind/entrypoint.sh /usr/local/bin/dind-entrypoint
-
-EXPOSE 2375 2376
-ENTRYPOINT ["dind-entrypoint"]
-CMD []

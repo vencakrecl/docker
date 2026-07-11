@@ -1,5 +1,5 @@
 #!/command/with-contenv sh
-# with-contenv imports the container environment so ${PHP_MEMORY} in php.ini is
+# with-contenv imports the container environment so ${PHP_MEMORY_LIMIT} in php.ini is
 # honored at runtime. exec 2>&1 sends stderr to stdout for the container log.
 exec 2>&1
 exec php-fpm -F
