@@ -8,6 +8,8 @@ ARG BASE_IMAGE=php:8.4-fpm
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
+# Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
+COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-packages apache2 \
  && helper install-s6-overlay
 
@@ -58,11 +60,14 @@ ARG USER_ID
 ARG GROUP_ID
 RUN if [ -n "$USER_ID" ]; then helper set-user-id "$SERVER_USER" "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
 
-# Hello-world landing page in the docroot. Debian's apache2 ships a default
-# index.html; drop it so our index.php is the served DirectoryIndex (Alpine ships
-# none - harmless). SERVER_ROOT is fixed to its default here at build time.
+# Hello-world landing page in the docroot, also the HEALTHCHECK target. Debian's
+# apache2 ships a default index.html; drop it so our index.php is the served
+# DirectoryIndex (Alpine ships none - harmless). SERVER_ROOT is fixed at build time.
 RUN rm -f ${SERVER_ROOT}/index.html
 COPY common/index.php ${SERVER_ROOT}/index.php
+# HTTP path the HEALTHCHECK probes; / serves index.php (repoint at your app's health
+# route if desired).
+ENV HEALTHCHECK_PATH=/
 
 # Secure by default: run unprivileged as $SERVER_USER. Make Apache's runtime and log
 # dirs writable by it (port 8080 needs no privilege).
@@ -71,4 +76,5 @@ RUN chown -R "$SERVER_USER:$SERVER_USER" /run /var/log/apache2 /var/www/html 2>/
 USER ${SERVER_USER}
 WORKDIR /var/www/html
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["healthcheck"]
 ENTRYPOINT ["/init"]

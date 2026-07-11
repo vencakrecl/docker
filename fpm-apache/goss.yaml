@@ -17,6 +17,11 @@ command:
     exec: php -r 'echo 40 + 2;'
     exit-status: 0
     stdout: ["42"]
+  # The container HEALTHCHECK probe: GETs $HEALTHCHECK_PATH and exits 0 on 2xx,
+  # exercising Apache -> php-fpm -> PHP end-to-end.
+  healthcheck:
+    exec: healthcheck
+    exit-status: 0
   # --- one test per env var: set it inline; php/php-fpm re-parse config each run.
   # These also prove the shared config is loaded (e.g. max_children=40 comes from
   # our env-driven common/php-fpm.conf; the base image would show its hardcoded 5)

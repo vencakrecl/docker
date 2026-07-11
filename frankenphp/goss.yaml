@@ -10,6 +10,11 @@ command:
     exec: php -r 'echo 40 + 2;'
     exit-status: 0
     stdout: ["42"]
+  # The container HEALTHCHECK probe: GETs $HEALTHCHECK_PATH and exits 0 on 2xx,
+  # exercising FrankenPHP -> PHP end-to-end.
+  healthcheck:
+    exec: healthcheck
+    exit-status: 0
   # PHP_MEMORY_LIMIT env override (set inline; php.ini re-parsed each run). Proves
   # the ${PHP_MEMORY_LIMIT} expansion in our php.ini works. frankenphp embeds PHP
   # (no php-fpm), so there are no PHP_FPM_* knobs.

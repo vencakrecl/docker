@@ -1,0 +1,27 @@
+#!/bin/sh
+# Container HEALTHCHECK probe for the web images. HTTP GET the health endpoint and
+# exit 0 only on a 2xx/3xx status. The endpoint (HEALTHCHECK_PATH, default /, which
+# serves index.php, on HEALTHCHECK_PORT, default 8080) is served through the full
+# request chain - web server -> php-fpm -> PHP (or frankenphp -> PHP) - so a healthy
+# result means the whole stack is up. Point HEALTHCHECK_PATH at your app's own route
+# (e.g. /up) to also validate the application.
+set -eu
+
+url="http://127.0.0.1:${HEALTHCHECK_PORT:-8080}${HEALTHCHECK_PATH:-/}"
+
+if command -v curl >/dev/null 2>&1; then
+    exec curl -fsS --max-time 5 -o /dev/null "$url"
+fi
+
+# Fallback: PHP is always present in these images (curl usually is too).
+exec php -r '
+$ctx = stream_context_create(["http" => ["timeout" => 5, "ignore_errors" => true]]);
+$body = @file_get_contents($argv[1], false, $ctx);
+if ($body === false) { exit(1); }
+foreach ($http_response_header as $h) {
+    if (preg_match("#^HTTP/\\S+ ([0-9]+)#", $h, $m)) {
+        exit((int) $m[1] >= 200 && (int) $m[1] < 400 ? 0 : 1);
+    }
+}
+exit(1);
+' "$url"

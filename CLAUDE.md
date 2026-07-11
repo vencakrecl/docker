@@ -103,7 +103,9 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   CLI executes (`php -r 'echo 40+2'`→42), and that the shared hello-world
   `common/index.php` is served at `/` on `:8080` (200 + body `Hello, World!`,
   proving PHP executes end-to-end through the web server); fpm images also check
-  php-fpm/nginx processes.
+  php-fpm/nginx processes. Each web image also has a `healthcheck` command test
+  running the `/usr/local/bin/healthcheck` probe (exit 0), which is the same script
+  the `HEALTHCHECK` directive runs (see the Health checks section).
 - Config is verified via one `env-*` test per env var (no separate default-value
   checks - they were redundant): set the var *inline* in the goss `exec`
   (`env PHP_FPM_PM_MAX_CHILDREN=40 php-fpm -tt`) and assert the effect. This works
@@ -175,6 +177,31 @@ driving `PHP_FPM_PM*` env vars (pm, max_children, start_servers, min/max_spare,
 max_requests). frankenphp embeds PHP (no php-fpm), so it doesn't get this file.
 Gotcha: dynamic pm requires `min_spare <= start_servers <= max_spare` or php-fpm
 refuses to start - the env overrides are interdependent.
+
+## Health checks
+
+Every image ships a Docker `HEALTHCHECK` (`--interval=30s --timeout=5s --retries=3`).
+Modelled on serversideup/docker-php: web images probe an HTTP endpoint, dind probes
+the daemon.
+
+- **Web images (fpm-nginx, fpm-apache, frankenphp):** `HEALTHCHECK CMD ["healthcheck"]`
+  runs `common/healthcheck` (copied to `/usr/local/bin/healthcheck`), which HTTP-GETs
+  `http://127.0.0.1:${HEALTHCHECK_PORT:-8080}${HEALTHCHECK_PATH}` and exits 0 only on
+  2xx/3xx (curl, with a PHP `file_get_contents` fallback - both present in the base).
+  `HEALTHCHECK_PATH` defaults to `/`, which serves the shared `common/index.php`
+  landing page (no separate health file). The probe goes through the full chain (web
+  server -> php-fpm -> PHP, or frankenphp -> PHP), so healthy means the whole stack
+  serves. `start-period=10s`.
+- **Caveat (docroot override):** unlike serversideup's server-level `/healthcheck`
+  route, ours hits `/` in the docroot. If you mount your own docroot over
+  `SERVER_ROOT`, `/` serves your app's index instead - set `HEALTHCHECK_PATH` to a
+  route your app serves (e.g. Laravel `/up`).
+- **dind:** `HEALTHCHECK CMD` (shell form) runs
+  `DOCKER_HOST=unix:///run/user/1000/docker.sock docker version` - healthy = the
+  rootless daemon answers on its per-user socket. `start-period=30s` (rootlesskit +
+  daemon are slow to come up); no PHP/curl involved.
+- On Alpine fpm-apache the endpoint still returns 200 but as raw PHP source (the
+  documented mod_proxy gap), so the probe passes without proving PHP executes.
 
 ## Per-image notes
 

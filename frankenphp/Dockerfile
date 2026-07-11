@@ -6,6 +6,8 @@ ARG BASE_IMAGE=dunglas/frankenphp:php8.4-bookworm
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
+# Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
+COPY common/healthcheck /usr/local/bin/healthcheck
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
@@ -18,9 +20,13 @@ COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 ENV SERVER_NAME=:8080
 ENV SERVER_ROOT=/app/public
 
-# Hello-world landing page in the docroot (overrides the base welcome page); must
-# come after ENV SERVER_ROOT and before the chown below so it is owned correctly.
+# Hello-world landing page in the docroot, also the HEALTHCHECK target (index.php
+# overrides the base welcome page); must come after ENV SERVER_ROOT and before the
+# chown below so it is owned correctly.
 COPY common/index.php ${SERVER_ROOT}/index.php
+# HTTP path the HEALTHCHECK probes; / serves index.php (repoint at your app's health
+# route if desired).
+ENV HEALTHCHECK_PATH=/
 
 # Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
 # USER and the chown below are fixed at build and the container runs non-root, so it
@@ -39,3 +45,4 @@ RUN chown -R "$SERVER_USER:$SERVER_USER" /app /config /data
 USER ${SERVER_USER}
 WORKDIR /app
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["healthcheck"]

@@ -6,6 +6,8 @@ ARG BASE_IMAGE=php:8.4-fpm
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
+# Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
+COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-packages nginx \
  && helper install-s6-overlay
 
@@ -22,9 +24,12 @@ COPY fpm-nginx/nginx.conf /etc/nginx/nginx.conf.template
 # s6 services: php-fpm + nginx.
 COPY fpm-nginx/s6-rc.d /etc/s6-overlay/s6-rc.d
 
-# Hello-world landing page in the docroot (SERVER_ROOT is fixed to its default here
-# at build time; mount your own docroot to override at runtime).
+# Hello-world landing page in the docroot, also the HEALTHCHECK target (SERVER_ROOT
+# is fixed to its default here at build time; mount your own docroot to override).
 COPY common/index.php ${SERVER_ROOT}/index.php
+# HTTP path the HEALTHCHECK probes; / serves index.php (repoint at your app's health
+# route if desired).
+ENV HEALTHCHECK_PATH=/
 
 # Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
 # USER and the chown below are fixed at build and the container runs non-root, so it
@@ -49,4 +54,5 @@ RUN chown -R "$SERVER_USER:$SERVER_USER" /run /var/lib/nginx /var/log/nginx /var
 USER ${SERVER_USER}
 WORKDIR /var/www/html
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["healthcheck"]
 ENTRYPOINT ["/init"]
