@@ -49,6 +49,7 @@ See https://docs.docker.com/build/building/multi-platform/
 Makefile              # local build targets
 common/helper         # shared build toolbox, used by all images
 common/php.ini        # shared PHP config, copied into conf.d on PHP images
+common/php-fpm.conf   # shared PHP-FPM pool tuning, for the fpm images
 <image>/Dockerfile    # one Dockerfile per image; base image via BASE_IMAGE arg
 <image>/goss.yaml     # runtime tests for the image (dgoss)
 ```
@@ -89,6 +90,22 @@ docker run -e PHP_MEMORY_LIMIT=512M ...   # memory_limit = 512M (default 128M)
 
 Add more env-driven settings by adding `key = ${ENV_VAR:-default}` lines to
 `common/php.ini` - no Dockerfile change needed.
+
+The fpm images (`fpm-nginx`, `fpm-apache`) also copy `common/php-fpm.conf` into
+`/usr/local/etc/php-fpm.d/zzz-common.conf` for process-manager tuning. php-fpm
+supports the same `${VAR:-default}` expansion, so the pool is tunable at runtime:
+
+| Env var | Directive | Default |
+|---------|-----------|---------|
+| `PHP_FPM_PM` | `pm` | `dynamic` |
+| `PHP_FPM_PM_MAX_CHILDREN` | `pm.max_children` | `20` |
+| `PHP_FPM_PM_START_SERVERS` | `pm.start_servers` | `2` |
+| `PHP_FPM_PM_MIN_SPARE_SERVERS` | `pm.min_spare_servers` | `1` |
+| `PHP_FPM_PM_MAX_SPARE_SERVERS` | `pm.max_spare_servers` | `3` |
+| `PHP_FPM_PM_MAX_REQUESTS` | `pm.max_requests` | `1000` |
+
+In `dynamic` mode php-fpm requires `min_spare ≤ start_servers ≤ max_spare`, so
+raise `PHP_FPM_PM_MAX_SPARE_SERVERS` if you raise `PHP_FPM_PM_START_SERVERS`.
 
 ## Building locally
 
@@ -132,38 +149,14 @@ changes file ownership on mounts.
 
 ## Docker Compose
 
-A ready-to-run example is in [`docker-compose.example.yml`](docker-compose.example.yml).
-The essentials:
-
-```yaml
-services:
-  app:
-    build:
-      context: .                    # repo root - the Dockerfiles COPY common/*
-      dockerfile: fpm-nginx/Dockerfile
-      args:
-        BASE_IMAGE: php:8.4-fpm-alpine
-        USER_ID: ${USER_ID:-}       # match host user (Linux); empty = default
-        GROUP_ID: ${GROUP_ID:-}
-    ports:
-      - "8080:8080"                 # container listens on 8080
-    environment:
-      PHP_MEMORY_LIMIT: "512M"      # overrides the 128M default
-    volumes:
-      - ./public:/var/www/html
-```
-
-Run it (host-user matching on Linux; harmless on Docker Desktop):
+A ready-to-run example (fpm-nginx app + Postgres, with host-user matching and the
+`PHP_MEMORY_LIMIT` override) is in
+[`docker-compose.example.yml`](docker-compose.example.yml). Run it:
 
 ```sh
 USER_ID=$(id -u) GROUP_ID=$(id -g) \
   docker compose -f docker-compose.example.yml up --build
 ```
-
-Notes: `context:` must be the repo root (the Dockerfiles `COPY common/…`), with
-`dockerfile:` pointing at the image's subdirectory. Swap `build:` for
-`image: <registry>/fpm-nginx:8.4-alpine` once the images are published. The `dind`
-service needs `privileged: true`.
 
 ## Testing
 
@@ -176,20 +169,8 @@ make test           # runtime-test every image (Alpine)
 make test-fpm-nginx # one image
 ```
 
-Requires `goss` + `dgoss` on `PATH` (on macOS also set `GOSS_PATH` to a Linux goss
-binary). What each image checks:
-
-| Image | goss checks |
-|-------|-------------|
-| `fpm-nginx` | runs as non-root; php-fpm + nginx running; PHP CLI executes; `memory_limit` == 128M; GET `:8080/ping.php` → 404 (fastcgi chain up) |
-| `fpm-apache` | runs as non-root; php-fpm running; PHP CLI executes; `memory_limit` == 128M; GET `:8080/` → 403 (empty docroot) |
-| `frankenphp` | runs as non-root; PHP CLI executes; `memory_limit` == 128M; GET `:8080/` → 200 |
-| `dind` | runs as non-root (rootless, uid 1000); `dockerd` running; `docker version` reaches the daemon (runs `--privileged`) |
-
-Notes: HTTP is used instead of a raw port check because Apache binds IPv6 on
-Alpine but IPv4 on Debian, and it also exercises the server end-to-end. Avoid
-Go-template `{{ }}` syntax anywhere in a goss.yaml (comments included) - goss
-renders the file as a template first.
+Requires `goss` + `dgoss` on `PATH`. Each image's checks live in its
+`<image>/goss.yaml`.
 
 ## Status
 

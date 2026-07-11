@@ -11,6 +11,8 @@ RUN helper install-packages nginx \
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
+# Shared PHP-FPM pool tuning (PHP_FPM_* env, defaults in the file).
+COPY common/php-fpm.conf /usr/local/etc/php-fpm.d/zzz-common.conf
 
 COPY fpm-nginx/nginx.conf /etc/nginx/nginx.conf
 # s6 services: php-fpm + nginx.

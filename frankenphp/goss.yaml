@@ -10,10 +10,13 @@ command:
     exec: php -r 'echo 40 + 2;'
     exit-status: 0
     stdout: ["42"]
-  memory-limit:
-    exec: php -r 'echo ini_get("memory_limit");'
+  # PHP_MEMORY_LIMIT env override (set inline; php.ini re-parsed each run). Proves
+  # the ${PHP_MEMORY_LIMIT} expansion in our php.ini works. frankenphp embeds PHP
+  # (no php-fpm), so there are no PHP_FPM_* knobs.
+  env-php-memory-limit:
+    exec: env PHP_MEMORY_LIMIT=512M php -r 'echo ini_get("memory_limit");'
     exit-status: 0
-    stdout: ["128M"]
+    stdout: ["512M"]
 http:
   http://localhost:8080/:
     status: 200

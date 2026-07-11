@@ -100,9 +100,18 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
 - Requires `goss` + `dgoss` on PATH (the target prints an install hint if absent);
   on macOS also set `GOSS_PATH` to a Linux goss binary. dind runs `--privileged`.
 - What each checks: the web images assert `runs-as-non-root` (`id -u` not 0), PHP
-  CLI executes (`php -r 'echo 40+2'`→42), `memory_limit`==128M, and an HTTP status
-  on `:8080` (fpm-nginx `/ping.php`→404, fpm-apache `/`→403, frankenphp `/`→200);
-  fpm images also check php-fpm/nginx processes. dind: dockerd running + `docker
+  CLI executes (`php -r 'echo 40+2'`→42), and an HTTP status on `:8080` (fpm-nginx
+  `/ping.php`→404, fpm-apache `/`→403, frankenphp `/`→200); fpm images also check
+  php-fpm/nginx processes.
+- Config is verified via one `env-*` test per env var (no separate default-value
+  checks - they were redundant): set the var *inline* in the goss `exec`
+  (`env PHP_FPM_PM_MAX_CHILDREN=40 php-fpm -tt`) and assert the effect. This works
+  in the default container - no restart with `-e` needed - because php and
+  `php-fpm -tt` re-parse config on every invocation. These also prove the shared
+  config is loaded (e.g. 40 vs the base image's hardcoded 5) and valid (exit 0).
+  php.ini values are read off `php -r`'s stdout; php-fpm values off `php-fpm -tt`'s
+  stderr. Keep override values within php-fpm's dynamic constraints
+  (min_spare <= start <= max_spare). dind: dockerd running + `docker
   version` reaches the daemon (root by design, no non-root check).
 - Gotchas: goss renders the whole goss.yaml (comments too) as a Go template, so
   never put `{{ }}` in it - e.g. don't use `docker ... --format` with a template;
@@ -112,7 +121,7 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   and http also tests serving end-to-end. For fpm-apache, don't check the
   web-server process by name (httpd on Alpine, apache2 on Debian).
 
-## PHP configuration (common/php.ini)
+## PHP configuration (common/php.ini, common/php-fpm.conf)
 
 The PHP images copy `common/php.ini` to `$PHP_INI_DIR/conf.d/zz-common.ini`. PHP
 expands `${...}` in ini files from the environment at parse time and supports a
@@ -122,6 +131,15 @@ by `docker run -e PHP_MEMORY_LIMIT=512M`. The default lives in the ini (not in a
 Dockerfile `ENV`); do not use a bare `${VAR}` (empty value makes PHP warn and
 fall back to 128M). To add a knob: add `key = ${ENV_VAR:-default}` to
 `common/php.ini` - no Dockerfile change. Not applied to `dind` (not a PHP image).
+
+The **fpm** images (fpm-nginx, fpm-apache) additionally copy `common/php-fpm.conf`
+to `/usr/local/etc/php-fpm.d/zzz-common.conf` (the `zzz-` prefix makes it load
+after the base `www.conf`/`zz-docker.conf`; php-fpm merges `[www]` across files, so
+ours wins). php-fpm's config parser *also* supports `${VAR:-default}` (verified),
+driving `PHP_FPM_PM*` env vars (pm, max_children, start_servers, min/max_spare,
+max_requests). frankenphp embeds PHP (no php-fpm), so it doesn't get this file.
+Gotcha: dynamic pm requires `min_spare <= start_servers <= max_spare` or php-fpm
+refuses to start - the env overrides are interdependent.
 
 ## Per-image notes
 
