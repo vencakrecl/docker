@@ -12,6 +12,8 @@
 #   install-packages <pkg...>       install OS packages (apt-get or apk)
 #   install-build-deps [pkg...]     install $PHPIZE_DEPS (+extras) as a removable group
 #   remove-build-deps               drop that group (Alpine; no-op on Debian)
+#   install-extensions              install PHP_EXTENSIONS/PHP_PECL_EXTENSIONS/
+#                                   PHP_PIE_EXTENSIONS/PHP_EXTENSION_PACKAGES (from env)
 #   install-s6-overlay              install s6-overlay (process supervisor / init)
 #   install-composer                install Composer to /usr/local/bin/composer
 #   install-pie                     install PIE (PHP ext installer) to /usr/local/bin/pie
@@ -229,6 +231,23 @@ remove_build_deps() {
     esac
 }
 
+# install_extensions - install the extensions named by the build args (exposed as env in
+# the RUN): PHP_EXTENSIONS (docker-php-ext-install), PHP_PECL_EXTENSIONS, PHP_PIE_EXTENSIONS,
+# with PHP_EXTENSION_PACKAGES for extra system libs (kept). pecl/pie compile from source,
+# so their toolchain (+unzip for pie) is added and removed to keep the image lean. No-op
+# when all are empty.
+install_extensions() {
+    set -eu
+    if [ -n "${PHP_EXTENSION_PACKAGES:-}" ]; then install_packages $PHP_EXTENSION_PACKAGES; fi
+    if [ -n "${PHP_EXTENSIONS:-}" ]; then install_docker_ext $PHP_EXTENSIONS; fi
+    if [ -n "${PHP_PECL_EXTENSIONS:-}" ] || [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then
+        if [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then install_build_deps unzip; else install_build_deps; fi
+        if [ -n "${PHP_PECL_EXTENSIONS:-}" ]; then install_pecl_ext $PHP_PECL_EXTENSIONS; fi
+        if [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then install_pie; install_pie_ext $PHP_PIE_EXTENSIONS; fi
+        remove_build_deps
+    fi
+}
+
 usage() {
     # print the leading comment header, up to the "Pinned tool versions" line
     sed -n '2,/^# Pinned/p' "$0" | sed 's/^# \{0,1\}//'
@@ -250,6 +269,7 @@ case "$cmd" in
     install-packages) install_packages "$@" ;;
     install-build-deps) install_build_deps "$@" ;;
     remove-build-deps) remove_build_deps ;;
+    install-extensions) install_extensions ;;
     install-s6-overlay) install_s6_overlay ;;
     install-composer) install_composer ;;
     install-pie) install_pie ;;

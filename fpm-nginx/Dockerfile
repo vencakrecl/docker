@@ -11,28 +11,17 @@ COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-packages nginx \
  && helper install-s6-overlay
 
-# Optionally build extra PHP extensions at build time. All optional, space-separated:
+# Optionally build extra PHP extensions at build time (all optional, space-separated):
 #   PHP_EXTENSIONS          docker-php-ext-install names (bundled), e.g. "mysqli gd"
-#   PHP_PECL_EXTENSIONS     PECL packages, e.g. "redis apcu"
-#   PHP_PIE_EXTENSIONS      PIE packages (composer vendor/name)
-#   PHP_EXTENSION_PACKAGES  extra system libs some extensions need (e.g. "libpng-dev"),
-#                           kept in the image (they may be needed at runtime)
-# e.g. --build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"
-# pecl/pie compile from source, so the toolchain ($PHPIZE_DEPS, +unzip for pie) is added
-# as a removable group and dropped afterwards to keep the image lean.
+#   PHP_PECL_EXTENSIONS     PECL packages, e.g. "redis"
+#   PHP_PIE_EXTENSIONS      PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
+#   PHP_EXTENSION_PACKAGES  extra system libs some extensions need (e.g. "libpng-dev"), kept
+# helper install-extensions reads these and adds/removes the pecl/pie build deps itself.
 ARG PHP_EXTENSION_PACKAGES=""
 ARG PHP_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS=""
-RUN set -eu; \
-    if [ -n "$PHP_EXTENSION_PACKAGES" ]; then helper install-packages $PHP_EXTENSION_PACKAGES; fi; \
-    if [ -n "$PHP_EXTENSIONS" ]; then helper install-docker-ext $PHP_EXTENSIONS; fi; \
-    if [ -n "$PHP_PECL_EXTENSIONS" ] || [ -n "$PHP_PIE_EXTENSIONS" ]; then \
-      if [ -n "$PHP_PIE_EXTENSIONS" ]; then helper install-build-deps unzip; else helper install-build-deps; fi; \
-      if [ -n "$PHP_PECL_EXTENSIONS" ]; then helper install-pecl-ext $PHP_PECL_EXTENSIONS; fi; \
-      if [ -n "$PHP_PIE_EXTENSIONS" ]; then helper install-pie && helper install-pie-ext $PHP_PIE_EXTENSIONS; fi; \
-      helper remove-build-deps; \
-    fi
+RUN helper install-extensions
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini

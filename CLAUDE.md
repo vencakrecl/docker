@@ -49,6 +49,9 @@ See `README.md` for the authoritative scheme. Summary:
 - `install-build-deps [pkgs...]` / `remove-build-deps` -> add `$PHPIZE_DEPS` (+extras) as
   a removable group for building pecl/pie exts, then drop it (Alpine `apk --virtual`;
   no-op remove on Debian, whose base already ships the toolchain)
+- `install-extensions` -> install the `PHP_EXTENSIONS`/`PHP_PECL_EXTENSIONS`/
+  `PHP_PIE_EXTENSIONS`/`PHP_EXTENSION_PACKAGES` build args (read from env); wraps the
+  above so each web Dockerfile is just the 4 `ARG`s + `RUN helper install-extensions`
 - `install-s6-overlay` -> s6-overlay init/supervisor (noarch + per-arch tarballs)
 - `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
 - `install-pie` -> PIE phar to `/usr/local/bin/pie` (needs PHP at runtime)
