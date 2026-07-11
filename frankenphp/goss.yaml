@@ -1,0 +1,13 @@
+# Runtime checks for a running frankenphp container (dgoss run ...).
+# FrankenPHP/Caddy serves on :80 and redirects http -> https (308).
+command:
+  memory-limit:
+    exec: php -r 'echo ini_get("memory_limit");'
+    exit-status: 0
+    stdout: ["128M"]
+http:
+  http://localhost:80/:
+    status: 308
+    allow-insecure: true
+    no-follow-redirects: true
+    timeout: 5000

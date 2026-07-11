@@ -1,0 +1,7 @@
+# IDE
+.idea
+.vscode
+
+# AI
+.claude/settings.local.json
+.claude/worktrees

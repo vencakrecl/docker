@@ -1,0 +1,15 @@
+# Runtime checks for a running dind container (dgoss run --privileged ...).
+# The Docker daemon must come up and the CLI must reach it.
+# NB: goss renders goss.yaml (comments included) through Go templating first, so
+# avoid Go-template brace syntax anywhere here - e.g. `docker ... --format` with
+# a template would break. `docker version` returns non-zero if the daemon is
+# unreachable, so exit-status 0 proves it is up.
+process:
+  dockerd:
+    running: true
+command:
+  docker-server:
+    exec: docker version
+    exit-status: 0
+    stdout:
+      - Server

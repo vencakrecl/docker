@@ -1,0 +1,17 @@
+# Runtime checks for a running fpm-apache container (dgoss run ...).
+# s6-overlay brings up php-fpm and Apache; empty docroot with -Indexes -> 403.
+# No web-server process check: Apache's process is httpd on Alpine, apache2 on
+# Debian. HTTP is used instead of a port check (Apache binds IPv6 on Alpine,
+# IPv4 on Debian).
+process:
+  php-fpm:
+    running: true
+command:
+  memory-limit:
+    exec: php -r 'echo ini_get("memory_limit");'
+    exit-status: 0
+    stdout: ["128M"]
+http:
+  http://localhost:80/:
+    status: 403
+    timeout: 5000

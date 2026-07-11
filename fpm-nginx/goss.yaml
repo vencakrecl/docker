@@ -1,0 +1,17 @@
+# Runtime checks for a running fpm-nginx container (dgoss run ...).
+# s6-overlay brings up php-fpm and nginx; a missing .php exercises the fastcgi
+# path (php-fpm returns 404; a 502 would mean php-fpm is down).
+process:
+  php-fpm:
+    running: true
+  nginx:
+    running: true
+command:
+  memory-limit:
+    exec: php -r 'echo ini_get("memory_limit");'
+    exit-status: 0
+    stdout: ["128M"]
+http:
+  http://localhost:80/ping.php:
+    status: 404
+    timeout: 5000

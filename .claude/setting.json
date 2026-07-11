@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(docker version *)",
+      "Bash(docker buildx *)",
+      "Bash(docker compose *)",
+      "WebFetch(domain:docs.docker.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:frankenphp.dev)",
+      "WebFetch(domain:hub.docker.com)"
+    ],
+    "defaultMode": "auto"
+  }
+}

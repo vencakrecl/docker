@@ -1,0 +1,223 @@
+#!/bin/sh
+# helper: build-time toolbox shared by every image in this repo.
+#
+# It abstracts the differences between the Debian and Alpine bases (package
+# manager, arch names) and installs the PHP tooling the images need. Copied to
+# /usr/local/bin/helper and invoked as `helper <command> [args...]`.
+#
+# Commands:
+#   detect-arch                     print canonical arch: amd64 | arm64
+#   detect-os                       print distro family: debian | alpine
+#   install-packages <pkg...>       install OS packages (apt-get or apk)
+#   install-s6-overlay              install s6-overlay (process supervisor / init)
+#   install-composer                install Composer to /usr/local/bin/composer
+#   install-pie                     install PIE (PHP ext installer) to /usr/local/bin/pie
+#   install-castor                  install Castor (task runner) to /usr/local/bin/castor
+#   install-pie-ext <ext...>                 install PHP extension(s) via PIE
+#   install-pie-skip-enable-ext <ext...>     ... without enabling
+#   install-pecl-ext <ext...>                install PHP extension(s) via PECL
+#   install-pecl-skip-enable-ext <ext...>    ... without enabling
+#   install-docker-ext <ext...>              install PHP extension(s) via docker-php-ext-install
+#   install-docker-skip-enable-ext <ext...>  ... without enabling
+#
+# Pinned tool versions (override via build args / env):
+S6_OVERLAY_VERSION="${S6_OVERLAY_VERSION:-3.2.3.0}"
+COMPOSER_VERSION="${COMPOSER_VERSION:-2.10.2}"
+PIE_VERSION="${PIE_VERSION:-1.4.8}"
+CASTOR_VERSION="${CASTOR_VERSION:-1.6.1}"
+
+set -eu
+
+# --- detection ---------------------------------------------------------------
+
+detect_arch() {
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64 | amd64) echo amd64 ;;
+        aarch64 | arm64) echo arm64 ;;
+        *) echo "helper: unsupported architecture: $arch" >&2; return 1 ;;
+    esac
+}
+
+detect_os() {
+    if [ -r /etc/os-release ]; then
+        . /etc/os-release
+        case "${ID:-}" in
+            alpine) echo alpine; return 0 ;;
+            debian | ubuntu) echo debian; return 0 ;;
+        esac
+        case "${ID_LIKE:-}" in
+            *alpine*) echo alpine; return 0 ;;
+            *debian*) echo debian; return 0 ;;
+        esac
+    fi
+    if command -v apk >/dev/null 2>&1; then echo alpine; return 0; fi
+    if command -v apt-get >/dev/null 2>&1; then echo debian; return 0; fi
+    echo "helper: cannot detect OS" >&2
+    return 1
+}
+
+# --- internals ---------------------------------------------------------------
+
+# _fetch <url> <dest> - download, installing curl + CA certs first if missing.
+_fetch() {
+    command -v curl >/dev/null 2>&1 || install_packages ca-certificates curl
+    curl -fsSL "$1" -o "$2"
+}
+
+# --- package install ---------------------------------------------------------
+
+install_packages() {
+    [ "$#" -gt 0 ] || return 0
+    os="$(detect_os)"
+    case "$os" in
+        alpine)
+            apk add --no-cache "$@"
+            ;;
+        debian)
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends "$@"
+            apt-get clean
+            rm -rf /var/lib/apt/lists/*
+            ;;
+        *)
+            echo "install-packages: unsupported OS '$os'" >&2
+            return 1
+            ;;
+    esac
+}
+
+# --- tool installers ---------------------------------------------------------
+
+install_s6_overlay() {
+    case "$(detect_arch)" in
+        amd64) s6arch=x86_64 ;;
+        arm64) s6arch=aarch64 ;;
+    esac
+    # .tar.xz extraction needs xz (busybox tar shells out to it).
+    case "$(detect_os)" in
+        alpine) install_packages xz ;;
+        debian) install_packages xz-utils ;;
+    esac
+    base="https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}"
+    tmp="$(mktemp -d)"
+    _fetch "$base/s6-overlay-noarch.tar.xz" "$tmp/noarch.tar.xz"
+    _fetch "$base/s6-overlay-${s6arch}.tar.xz" "$tmp/arch.tar.xz"
+    tar -C / -Jxpf "$tmp/noarch.tar.xz"
+    tar -C / -Jxpf "$tmp/arch.tar.xz"
+    rm -rf "$tmp"
+}
+
+install_composer() {
+    tmp="$(mktemp -d)"
+    url="https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar"
+    _fetch "$url" "$tmp/composer.phar"
+    _fetch "$url.sha256sum" "$tmp/composer.phar.sha256sum"
+    want="$(cut -d' ' -f1 "$tmp/composer.phar.sha256sum")"
+    got="$(sha256sum "$tmp/composer.phar" | cut -d' ' -f1)"
+    if [ "$want" != "$got" ]; then
+        echo "install-composer: checksum mismatch (want $want, got $got)" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    install -m 0755 "$tmp/composer.phar" /usr/local/bin/composer
+    rm -rf "$tmp"
+}
+
+install_pie() {
+    _fetch "https://github.com/php/pie/releases/download/${PIE_VERSION}/pie.phar" /usr/local/bin/pie
+    chmod +x /usr/local/bin/pie
+}
+
+install_castor() {
+    _fetch "https://github.com/jolicode/castor/releases/download/v${CASTOR_VERSION}/castor.linux-$(detect_arch)" \
+        /usr/local/bin/castor
+    chmod +x /usr/local/bin/castor
+}
+
+# For each tool there are two functions: the plain one enables the extension(s),
+# the *_skip_enable_* variant installs without enabling. Every argument is an
+# extension name, so multiple extensions can be passed at once.
+
+# install_pie_ext <ext...> - install via PIE (composer-style names), enabled
+install_pie_ext() {
+    [ "$#" -gt 0 ] || { echo "usage: helper install-pie-ext <ext...>" >&2; return 2; }
+    for ext in "$@"; do
+        pie install "$ext"
+    done
+}
+
+# install_pie_skip_enable_ext <ext...> - install via PIE without enabling
+install_pie_skip_enable_ext() {
+    [ "$#" -gt 0 ] || { echo "usage: helper install-pie-skip-enable-ext <ext...>" >&2; return 2; }
+    for ext in "$@"; do
+        pie install --skip-enable-extension "$ext"
+    done
+}
+
+# install_pecl_ext <ext...> - install via PECL and enable.
+# Specs may carry a version (e.g. redis-6.0.2); the bare name is enabled.
+install_pecl_ext() {
+    [ "$#" -gt 0 ] || { echo "usage: helper install-pecl-ext <ext...>" >&2; return 2; }
+    for ext in "$@"; do
+        pecl install "$ext"
+        docker-php-ext-enable "${ext%%-[0-9]*}"
+    done
+}
+
+# install_pecl_skip_enable_ext <ext...> - install via PECL without enabling
+install_pecl_skip_enable_ext() {
+    [ "$#" -gt 0 ] || { echo "usage: helper install-pecl-skip-enable-ext <ext...>" >&2; return 2; }
+    for ext in "$@"; do
+        pecl install "$ext"
+    done
+}
+
+# install_docker_ext <ext...> - install core ext via docker-php-ext-install (enables)
+install_docker_ext() {
+    [ "$#" -gt 0 ] || { echo "usage: helper install-docker-ext <ext...>" >&2; return 2; }
+    docker-php-ext-install -j"$(nproc 2>/dev/null || echo 1)" "$@"
+}
+
+# install_docker_skip_enable_ext <ext...> - install core ext without enabling.
+# docker-php-ext-install always enables, so the generated ini is removed after.
+install_docker_skip_enable_ext() {
+    [ "$#" -gt 0 ] || { echo "usage: helper install-docker-skip-enable-ext <ext...>" >&2; return 2; }
+    docker-php-ext-install -j"$(nproc 2>/dev/null || echo 1)" "$@"
+    for ext in "$@"; do
+        rm -f "${PHP_INI_DIR:-/usr/local/etc/php}/conf.d/docker-php-ext-${ext}.ini"
+    done
+}
+
+usage() {
+    # print the leading comment header, up to the "Pinned tool versions" line
+    sed -n '2,/^# Pinned/p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+# --- dispatch ----------------------------------------------------------------
+
+if [ "$#" -gt 0 ]; then
+    cmd="$1"
+    shift
+else
+    cmd=""
+fi
+
+case "$cmd" in
+    detect-arch) detect_arch ;;
+    detect-os) detect_os ;;
+    install-packages) install_packages "$@" ;;
+    install-s6-overlay) install_s6_overlay ;;
+    install-composer) install_composer ;;
+    install-pie) install_pie ;;
+    install-castor) install_castor ;;
+    install-pie-ext) install_pie_ext "$@" ;;
+    install-pie-skip-enable-ext) install_pie_skip_enable_ext "$@" ;;
+    install-pecl-ext) install_pecl_ext "$@" ;;
+    install-pecl-skip-enable-ext) install_pecl_skip_enable_ext "$@" ;;
+    install-docker-ext) install_docker_ext "$@" ;;
+    install-docker-skip-enable-ext) install_docker_skip_enable_ext "$@" ;;
+    "" | help | -h | --help) usage ;;
+    *) echo "helper: unknown command '$cmd'" >&2; usage; return 2 2>/dev/null || exit 2 ;;
+esac
