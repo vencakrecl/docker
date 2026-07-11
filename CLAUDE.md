@@ -181,22 +181,23 @@ UTC timezone): `PHP_MEMORY_LIMIT` (128M), `PHP_UPLOAD_MAX_FILESIZE` (2M),
 `PHP_OPCACHE_INTERNED_STRINGS_BUFFER` (8), `PHP_OPCACHE_VALIDATE_TIMESTAMPS` (1),
 `PHP_REALPATH_CACHE_SIZE` (4096K), `PHP_REALPATH_CACHE_TTL` (120). Each has an `env-*`
 goss test that sets it inline and asserts `ini_get`. The `examples/<fw>` composes tune
-PHP per framework purely through these env vars (no mounted `php.ini`). PHP's own
-`max_execution_time` is *not* a knob - it's an app/framework concern (and the CLI SAPI
-forces it to 0, so it isn't `ini_get`-testable anyway); the web-server backend timeout
-is `SERVER_TIMEOUT` instead.
+PHP per framework purely through these env vars (no mounted `php.ini`).
 
 `SERVER_TIMEOUT` (seconds, image ENV default **30**, same `SERVER_*` family as
-`SERVER_ROOT`/`SERVER_USER`) is the web server's backend request timeout - set it >=
-your app's `max_execution_time` so the server doesn't 504/close *before* PHP finishes
-(raise it for long requests). **fpm-nginx** renders it into `fastcgi_read_timeout` in the
-nginx run script (a goss test asserts the default 30s in `/run/nginx.conf`);
-**fpm-apache** expands `${SERVER_TIMEOUT}` in `vhost.conf`'s `ProxyTimeout` (it's an ENV,
-already in httpd's environment); **frankenphp** has no FastCGI proxy and Caddy sets no
-short request timeout, so it's a no-op there (`max_execution_time` governs directly).
-Must be a positive integer: a backend timeout of 0 is invalid (nginx reads
-`fastcgi_read_timeout 0` as *time out immediately*; Apache's `ProxyTimeout` must be >= 1),
-so the run scripts reject 0/non-numeric with a clear error rather than guess a value.
+`SERVER_ROOT`/`SERVER_USER`) is the single request time budget: `common/php.ini` sets
+`max_execution_time = ${SERVER_TIMEOUT}` *and* the web servers use it as their backend
+timeout, so PHP's limit and the proxy stay aligned by construction (the proxy waits
+exactly as long as PHP may run - no "raise both"). **fpm-nginx** renders it into
+`fastcgi_read_timeout` in the nginx run script (a goss test asserts the default 30s in
+`/run/nginx.conf`); **fpm-apache** expands `${SERVER_TIMEOUT}` in `vhost.conf`'s
+`ProxyTimeout`; **frankenphp** has no FastCGI proxy, but `max_execution_time` still caps
+requests there. Every web image therefore declares `ENV SERVER_TIMEOUT=30` (the shared
+php.ini needs it defined). Must be a positive integer for the fpm images: a backend
+timeout of 0 is invalid (nginx reads `fastcgi_read_timeout 0` as *time out immediately*;
+Apache's `ProxyTimeout` must be >= 1), so their run scripts reject 0/non-numeric with a
+clear error; on frankenphp `SERVER_TIMEOUT=0` just means `max_execution_time=0`
+(unlimited PHP), which is valid. Note the CLI SAPI forces `max_execution_time` to 0, so
+that value isn't `ini_get`-testable (unlike the other php.ini knobs).
 
 The **fpm** images (fpm-nginx, fpm-apache) additionally copy `common/php-fpm.conf`
 to `/usr/local/etc/php-fpm.d/zzz-common.conf` (the `zzz-` prefix makes it load

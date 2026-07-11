@@ -31,6 +31,9 @@ COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 # runtime (docker run -e SERVER_ROOT=...).
 ENV SERVER_NAME=:8080
 ENV SERVER_ROOT=/app/public
+# Request time budget (seconds). frankenphp has no FastCGI proxy, but the shared
+# php.ini ties PHP's max_execution_time to it, so it caps request duration here too.
+ENV SERVER_TIMEOUT=30
 
 # Hello-world landing page in the docroot, also the HEALTHCHECK target (index.php
 # overrides the base welcome page); must come after ENV SERVER_ROOT and before the
