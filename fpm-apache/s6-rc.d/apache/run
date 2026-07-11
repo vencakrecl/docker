@@ -5,7 +5,14 @@ exec 2>&1
 # max_execution_time (so Apache waits as long as PHP may run) unless the caller set
 # SERVER_TIMEOUT. Must be a real env var - httpd errors on an undefined ${VAR}.
 : "${SERVER_TIMEOUT:=${PHP_MAX_EXECUTION_TIME:-30}}"
-[ "$SERVER_TIMEOUT" = "0" ] && SERVER_TIMEOUT=3600   # 0 (unlimited) -> 1h
+# Must be a positive integer of seconds: Apache's ProxyTimeout must be >= 1, so a 0 (or
+# non-numeric) value is a misconfiguration, not "unlimited". PHP_MAX_EXECUTION_TIME=0
+# (unlimited) therefore has no backend-timeout equivalent - set SERVER_TIMEOUT explicitly.
+case "$SERVER_TIMEOUT" in
+    '' | *[!0-9]* | 0)
+        echo "apache: SERVER_TIMEOUT must be a positive integer of seconds (got '$SERVER_TIMEOUT'); set it explicitly." >&2
+        exit 1 ;;
+esac
 export SERVER_TIMEOUT
 # Run Apache in the foreground regardless of distro: Debian ships apache2ctl
 # (which sources /etc/apache2/envvars), Alpine ships httpd.

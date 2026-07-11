@@ -195,7 +195,12 @@ same `SERVER_*` family as `SERVER_ROOT`/`SERVER_USER`): **fpm-nginx** renders
 defaulted+exported by the apache run script; **frankenphp** has no FastCGI proxy and
 Caddy sets no short request timeout, so `max_execution_time` governs directly (so
 `SERVER_TIMEOUT` is a no-op there). `SERVER_TIMEOUT` defaults to `PHP_MAX_EXECUTION_TIME`
-(or 30), and `0` (unlimited) maps to a 1h backend timeout so nginx/apache still start.
+(or 30) and must be a positive integer of seconds - a backend timeout of 0 is invalid
+(nginx reads `fastcgi_read_timeout 0` as *time out immediately*; Apache's `ProxyTimeout`
+must be >= 1), so it is not "unlimited". The run scripts reject 0/non-numeric with a
+clear error rather than guess a value; consequently `PHP_MAX_EXECUTION_TIME=0`
+(unlimited PHP) has no backend equivalent and requires setting `SERVER_TIMEOUT`
+explicitly on fpm-nginx/fpm-apache (frankenphp is unaffected - no proxy).
 
 The **fpm** images (fpm-nginx, fpm-apache) additionally copy `common/php-fpm.conf`
 to `/usr/local/etc/php-fpm.d/zzz-common.conf` (the `zzz-` prefix makes it load
