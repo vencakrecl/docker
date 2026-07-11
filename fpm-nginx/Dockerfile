@@ -22,23 +22,31 @@ COPY fpm-nginx/nginx.conf /etc/nginx/nginx.conf.template
 # s6 services: php-fpm + nginx.
 COPY fpm-nginx/s6-rc.d /etc/s6-overlay/s6-rc.d
 
-# Hello-world landing page (docroot is /var/www/html).
-COPY common/index.php /var/www/html/index.php
+# Hello-world landing page in the docroot (SERVER_ROOT is fixed to its default here
+# at build time; mount your own docroot to override at runtime).
+COPY common/index.php ${SERVER_ROOT}/index.php
 
-# Optionally remap www-data to the host user's uid/gid for local development
+# Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
+# USER and the chown below are fixed at build and the container runs non-root, so it
+# cannot switch users at runtime. Override with --build-arg SERVER_USER=... to rebuild
+# (or docker run --user at runtime).
+ARG SERVER_USER=www-data
+ENV SERVER_USER=${SERVER_USER}
+
+# Optionally remap $SERVER_USER to the host user's uid/gid for local development
 # (bind-mounted files then get the right owner on Linux hosts). Done before the
 # chown below so it picks up the new id. Leave unset to keep the hardened default.
 ARG USER_ID
 ARG GROUP_ID
-RUN if [ -n "$USER_ID" ]; then helper set-user-id www-data "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
+RUN if [ -n "$USER_ID" ]; then helper set-user-id "$SERVER_USER" "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
 
-# Make the runtime dirs writable by www-data so the whole stack (s6-overlay
+# Make the runtime dirs writable by $SERVER_USER so the whole stack (s6-overlay
 # included) can run unprivileged. nginx listens on 8080, php-fpm on 9000 - both
 # non-privileged ports, so no root/caps needed. /var/log/nginx is the symlink
 # target of /var/lib/nginx/logs (chown -R does not follow the symlink).
-RUN chown -R www-data:www-data /run /var/lib/nginx /var/log/nginx /var/www/html
+RUN chown -R "$SERVER_USER:$SERVER_USER" /run /var/lib/nginx /var/log/nginx /var/www/html
 
-USER www-data
+USER ${SERVER_USER}
 WORKDIR /var/www/html
 EXPOSE 8080
 ENTRYPOINT ["/init"]

@@ -10,9 +10,6 @@ COPY common/helper /usr/local/bin/helper
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 
-# Hello-world landing page (docroot is /app/public; overrides the base welcome page).
-COPY common/index.php /app/public/index.php
-
 # Secure by default: run unprivileged as www-data. SERVER_NAME=:8080 makes
 # FrankenPHP/Caddy serve plain HTTP on a high port (no 443/auto-TLS, no root).
 # Caddy writes to /config and /data (XDG dirs). SERVER_ROOT is the docroot; the
@@ -20,13 +17,25 @@ COPY common/index.php /app/public/index.php
 # runtime (docker run -e SERVER_ROOT=...).
 ENV SERVER_NAME=:8080
 ENV SERVER_ROOT=/app/public
-# Optionally remap www-data to the host user's uid/gid for local development
+
+# Hello-world landing page in the docroot (overrides the base welcome page); must
+# come after ENV SERVER_ROOT and before the chown below so it is owned correctly.
+COPY common/index.php ${SERVER_ROOT}/index.php
+
+# Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
+# USER and the chown below are fixed at build and the container runs non-root, so it
+# cannot switch users at runtime. Override with --build-arg SERVER_USER=... to rebuild
+# (or docker run --user at runtime).
+ARG SERVER_USER=www-data
+ENV SERVER_USER=${SERVER_USER}
+
+# Optionally remap $SERVER_USER to the host user's uid/gid for local development
 # (done before the chown so it picks up the new id). Unset = hardened default.
 ARG USER_ID
 ARG GROUP_ID
-RUN if [ -n "$USER_ID" ]; then helper set-user-id www-data "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
-RUN chown -R www-data:www-data /app /config /data
+RUN if [ -n "$USER_ID" ]; then helper set-user-id "$SERVER_USER" "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
+RUN chown -R "$SERVER_USER:$SERVER_USER" /app /config /data
 
-USER www-data
+USER ${SERVER_USER}
 WORKDIR /app
 EXPOSE 8080

@@ -14,6 +14,14 @@ RUN helper install-packages apache2 \
 # Document root, overridable at runtime; httpd expands ${SERVER_ROOT} in vhost.conf.
 ENV SERVER_ROOT=/var/www/html
 
+# Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
+# USER and the chown below are fixed at build and the container runs non-root, so it
+# cannot switch users at runtime. Override with --build-arg SERVER_USER=... to rebuild
+# (or docker run --user at runtime). httpd expands ${SERVER_USER} in the Alpine
+# User/Group directives below (inert while non-root, but kept consistent).
+ARG SERVER_USER=www-data
+ENV SERVER_USER=${SERVER_USER}
+
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 # Shared PHP-FPM pool tuning (PHP_FPM_* env, defaults in the file).
@@ -38,8 +46,8 @@ RUN set -eux; \
             -e 's,^#(LoadModule rewrite_module .*),\1,' \
             -e 's,^#(LoadModule setenvif_module .*),\1,' \
             -e 's,^Listen 80$,Listen 8080,' \
-            -e 's,^User apache$,User www-data,' \
-            -e 's,^Group apache$,Group www-data,' \
+            -e 's,^User apache$,User ${SERVER_USER},' \
+            -e 's,^Group apache$,Group ${SERVER_USER},' \
             /etc/apache2/httpd.conf; \
         echo "Include /etc/apache2/fpm-vhost.conf" >> /etc/apache2/httpd.conf; \
     fi
@@ -48,18 +56,19 @@ RUN set -eux; \
 # (done before the chown so it picks up the new id). Unset = hardened default.
 ARG USER_ID
 ARG GROUP_ID
-RUN if [ -n "$USER_ID" ]; then helper set-user-id www-data "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
+RUN if [ -n "$USER_ID" ]; then helper set-user-id "$SERVER_USER" "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
 
-# Hello-world landing page. Debian's apache2 ships a default index.html; drop it
-# so our index.php is the served DirectoryIndex (Alpine ships none - harmless).
-RUN rm -f /var/www/html/index.html
-COPY common/index.php /var/www/html/index.php
+# Hello-world landing page in the docroot. Debian's apache2 ships a default
+# index.html; drop it so our index.php is the served DirectoryIndex (Alpine ships
+# none - harmless). SERVER_ROOT is fixed to its default here at build time.
+RUN rm -f ${SERVER_ROOT}/index.html
+COPY common/index.php ${SERVER_ROOT}/index.php
 
-# Secure by default: run unprivileged as www-data. Make Apache's runtime and log
+# Secure by default: run unprivileged as $SERVER_USER. Make Apache's runtime and log
 # dirs writable by it (port 8080 needs no privilege).
-RUN chown -R www-data:www-data /run /var/log/apache2 /var/www/html 2>/dev/null || true
+RUN chown -R "$SERVER_USER:$SERVER_USER" /run /var/log/apache2 /var/www/html 2>/dev/null || true
 
-USER www-data
+USER ${SERVER_USER}
 WORKDIR /var/www/html
 EXPOSE 8080
 ENTRYPOINT ["/init"]

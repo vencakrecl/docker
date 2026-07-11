@@ -187,7 +187,11 @@ refuses to start - the env overrides are interdependent.
   php-fpm listens on 127.0.0.1:9000. Note: setting `ENTRYPOINT` reset the base
   image's inherited `CMD ["php-fpm"]` to empty, so /init runs only the services.
 - **Non-root (secure by default):** the web images run unprivileged as `www-data`
-  on port **8080** (`USER www-data`, `EXPOSE 8080`). s6-overlay has "limited"
+  on port **8080** (`USER ${SERVER_USER}`, `EXPOSE 8080`). `SERVER_USER` is a build
+  ARG (default `www-data`, persisted as ENV) used for the `chown`, `set-user-id`, and
+  `USER` - unlike `SERVER_ROOT` it is *build-time only* (the `USER`/`chown` are baked
+  and the container is non-root, so it cannot switch users at runtime; override with
+  `--build-arg SERVER_USER=...` to rebuild, or `docker run --user` at runtime). s6-overlay has "limited"
   non-root support that works here because there are only two services and no
   fix-attrs/loggers/syslogd. Requirements: the runtime dirs must be writable by
   www-data - `chown -R www-data /run <server dirs>` (nginx: `/var/lib/nginx`
