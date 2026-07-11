@@ -7,14 +7,16 @@
 # Laravel's docroot is public/. The app is mounted read-write (it writes to
 # storage/ and bootstrap/cache/); on Linux match ownership via the image's
 # USER_ID/GROUP_ID build args or `user:` here.
+# PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
 name: example-laravel
 
 x-app: &app
   environment:
     SERVER_ROOT: /app/public
+    PHP_MEMORY_LIMIT: 256M
+    PHP_OPCACHE_INTERNED_STRINGS_BUFFER: 16
   volumes:
     - ./app:/app
-    - ./php.ini:/usr/local/etc/php/conf.d/zzz-app.ini:ro
   restart: unless-stopped
 
 services:

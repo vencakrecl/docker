@@ -20,11 +20,15 @@ x-ext: &ext
   PHP_EXTENSION_PACKAGES: "libpng-dev"
 
 x-app: &app
+  # PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
   environment:
     SERVER_ROOT: /app
+    PHP_MEMORY_LIMIT: 256M
+    PHP_UPLOAD_MAX_FILESIZE: 64M
+    PHP_POST_MAX_SIZE: 128M
+    PHP_MAX_INPUT_VARS: 3000
   volumes:
     - ./app:/app
-    - ./php.ini:/usr/local/etc/php/conf.d/zzz-app.ini:ro
   depends_on:
     - db
   restart: unless-stopped

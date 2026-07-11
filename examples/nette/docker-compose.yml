@@ -6,14 +6,15 @@
 #
 # Nette's docroot is www/. The app is mounted read-write (it writes to temp/ and
 # log/); on Linux match ownership via the image's USER_ID/GROUP_ID build args or `user:`.
+# PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
 name: example-nette
 
 x-app: &app
   environment:
     SERVER_ROOT: /app/www
+    PHP_OPCACHE_INTERNED_STRINGS_BUFFER: 16
   volumes:
     - ./app:/app
-    - ./php.ini:/usr/local/etc/php/conf.d/zzz-app.ini:ro
   restart: unless-stopped
 
 services:

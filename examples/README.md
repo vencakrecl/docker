@@ -5,23 +5,25 @@ Each subfolder runs a real PHP framework on all three web images (`fpm-nginx`,
 front controller: docroot via `SERVER_ROOT`, routing, the built-in `HEALTHCHECK`, and
 graceful `docker stop`.
 
-Only the `docker-compose.yml` and `php.ini` files are committed. The framework skeleton
-is installed on demand into `<framework>/app/` (git-ignored) by a `make` target.
+Only the `docker-compose.yml` files are committed. The framework skeleton is installed
+on demand into `<framework>/app/` (git-ignored) by a `make` target.
 
-Each folder also ships a `php.ini` tuned to that framework's documented recommendations
-(OPcache sizing for Symfony/Laravel/Nette, upload/memory limits for WordPress). It is
-mounted into the image's `conf.d` after the shared `zz-common.ini`, so it wins. These
-are dev-tuned: `opcache.validate_timestamps` is left on so edits show up - see each
-`php.ini`'s header for the production notes (and sources).
+Each compose tunes PHP for its framework through the images' **env knobs**
+(`common/php.ini` - e.g. `PHP_OPCACHE_MEMORY_CONSUMPTION`, `PHP_MEMORY_LIMIT`,
+`PHP_UPLOAD_MAX_FILESIZE`), set under `environment:` - not a mounted `php.ini`. The
+values follow each framework's documented recommendations (OPcache sizing for
+Symfony/Laravel/Nette from Symfony's performance docs + the PHP manual; upload/memory
+limits for WordPress). `opcache.validate_timestamps` is left on (dev) so edits show up;
+set `PHP_OPCACHE_VALIDATE_TIMESTAMPS=0` in production.
 
 ## Layout
 
 ```
 examples/
-  laravel/     docker-compose.yml + php.ini   # SERVER_ROOT=/app/public
-  symfony/     docker-compose.yml + php.ini   # SERVER_ROOT=/app/public
-  nette/       docker-compose.yml + php.ini   # SERVER_ROOT=/app/www
-  wordpress/   docker-compose.yml + php.ini   # SERVER_ROOT=/app  (+ a MariaDB service)
+  laravel/docker-compose.yml      # SERVER_ROOT=/app/public
+  symfony/docker-compose.yml      # SERVER_ROOT=/app/public
+  nette/docker-compose.yml        # SERVER_ROOT=/app/www
+  wordpress/docker-compose.yml    # SERVER_ROOT=/app  (+ a MariaDB service)
 ```
 
 ## Use

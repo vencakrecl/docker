@@ -38,6 +38,30 @@ command:
     exec: env PHP_DATE_TIMEZONE=Europe/Prague php -r 'echo ini_get("date.timezone");'
     exit-status: 0
     stdout: ["Europe/Prague"]
+  env-php-opcache-memory-consumption:
+    exec: env PHP_OPCACHE_MEMORY_CONSUMPTION=256 php -r 'echo ini_get("opcache.memory_consumption");'
+    exit-status: 0
+    stdout: ["256"]
+  env-php-opcache-max-accelerated-files:
+    exec: env PHP_OPCACHE_MAX_ACCELERATED_FILES=32531 php -r 'echo ini_get("opcache.max_accelerated_files");'
+    exit-status: 0
+    stdout: ["32531"]
+  env-php-opcache-interned-strings-buffer:
+    exec: env PHP_OPCACHE_INTERNED_STRINGS_BUFFER=32 php -r 'echo ini_get("opcache.interned_strings_buffer");'
+    exit-status: 0
+    stdout: ["32"]
+  env-php-opcache-validate-timestamps:
+    exec: env PHP_OPCACHE_VALIDATE_TIMESTAMPS=0 php -r 'echo ini_get("opcache.validate_timestamps");'
+    exit-status: 0
+    stdout: ["0"]
+  env-php-realpath-cache-size:
+    exec: env PHP_REALPATH_CACHE_SIZE=8192K php -r 'echo ini_get("realpath_cache_size");'
+    exit-status: 0
+    stdout: ["8192K"]
+  env-php-realpath-cache-ttl:
+    exec: env PHP_REALPATH_CACHE_TTL=600 php -r 'echo ini_get("realpath_cache_ttl");'
+    exit-status: 0
+    stdout: ["600"]
 http:
   http://localhost:8080/:
     status: 200
