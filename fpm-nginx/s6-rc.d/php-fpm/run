@@ -3,4 +3,8 @@
 # with-contenv imports the container environment so ${PHP_MEMORY_LIMIT} in php.ini is
 # honored at runtime. exec 2>&1 sends stderr to stdout for the container log.
 exec 2>&1
-exec php-fpm -F
+# s6-notifyoncheck polls ./data/check until php-fpm accepts connections, then raises
+# the readiness notification on notification-fd (3). nginx depends on this service, so
+# it starts only once php-fpm is actually up - no startup 502 window. Must run from the
+# service dir (no cd before it); -d runs the poller as a grandchild.
+exec s6-notifyoncheck -d php-fpm -F

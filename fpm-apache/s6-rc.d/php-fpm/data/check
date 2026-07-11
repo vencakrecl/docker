@@ -1,0 +1,5 @@
+#!/command/with-contenv sh
+# shellcheck shell=sh
+# Readiness probe for php-fpm, polled by s6-notifyoncheck: exits 0 once the master
+# accepts connections on 127.0.0.1:9000. php is always present; no extra tooling.
+exec php -r 'exit(@fsockopen("127.0.0.1", 9000, $e, $s, 1) ? 0 : 1);'

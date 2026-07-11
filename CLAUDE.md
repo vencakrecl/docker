@@ -213,6 +213,22 @@ the daemon.
   so `${PHP_MEMORY_LIMIT}` still reaches it at runtime.
   php-fpm listens on 127.0.0.1:9000. Note: setting `ENTRYPOINT` reset the base
   image's inherited `CMD ["php-fpm"]` to empty, so /init runs only the services.
+- **Startup readiness + ordering (s6, from serversideup):** the web server declares
+  a `dependencies.d/php-fpm`, and php-fpm signals *readiness* (not just "started") so
+  the web server only starts once FPM actually accepts connections - no startup 502
+  window. Readiness is wired the s6 way: php-fpm's run is `s6-notifyoncheck -d php-fpm
+  -F`, its `notification-fd` is `3`, and its `data/check` (a `php -r fsockopen` on
+  :9000, no extra tooling) is polled until FPM is up. (serversideup uses their
+  `php-fpm-healthcheck` binary for the same check; we don't ship it.) s6-notifyoncheck
+  must run from the service dir - no `cd` before it.
+- **Shutdown is not graceful (pre-existing limitation):** `docker stop` sends SIGTERM,
+  which s6 PID 1 does not act on, so the container is SIGKILLed after Docker's 10s
+  timeout (exit 137). SIGQUIT *does* trigger s6's shutdown but then hangs (services
+  never exit) - reproduced on Docker Desktop as both root and non-root and with the
+  original s6 config, so it is not caused by the readiness change. serversideup fixes
+  graceful stop with `STOPSIGNAL SIGQUIT` (+ `down-signal SIGQUIT` per service); we did
+  NOT adopt it because SIGQUIT hangs here. Revisit on Linux/CI (may not reproduce) or
+  via serversideup's full entrypoint before adding `STOPSIGNAL`.
 - **Non-root (secure by default):** the web images run unprivileged as `www-data`
   on port **8080** (`USER ${SERVER_USER}`, `EXPOSE 8080`). `SERVER_USER` is a build
   ARG (default `www-data`, persisted as ENV) used for the `chown`, `set-user-id`, and
