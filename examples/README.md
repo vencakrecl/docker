@@ -23,7 +23,7 @@ examples/
 From the repo root: install the skeleton, then bring the stack up.
 
 ```sh
-make example-symfony                                        # -> examples/symfony/app
+make -C examples symfony                                        # -> examples/symfony/app
 docker compose -f examples/symfony/docker-compose.yml up --build -d
 curl localhost:8081/     # fpm-nginx
 curl localhost:8082/     # fpm-apache
@@ -32,8 +32,8 @@ docker compose -f examples/symfony/docker-compose.yml ps    # HEALTHCHECK status
 docker compose -f examples/symfony/docker-compose.yml down
 ```
 
-Targets: `make example-laravel`, `make example-symfony`, `make example-nette`,
-`make example-wordpress`. Each installs into `<framework>/app` via a throwaway
+Targets: `make -C examples laravel`, `make -C examples symfony`, `make -C examples nette`,
+`make -C examples wordpress`. Each installs into `<framework>/app` via a throwaway
 container (no host PHP/Composer needed). All four composes use ports 8081/8082/8083,
 so run one framework at a time.
 
