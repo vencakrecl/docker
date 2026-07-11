@@ -1,8 +1,14 @@
 #!/command/with-contenv sh
 # shellcheck shell=sh
 exec 2>&1
-# nginx cannot expand env vars in its config, so render ${SERVER_ROOT} from the
-# template into /run (writable by www-data) and point nginx at it. Only
-# ${SERVER_ROOT} is substituted; nginx's own $uri/$document_root are left intact.
-sed "s#\${SERVER_ROOT}#${SERVER_ROOT}#g" /etc/nginx/nginx.conf.template > /run/nginx.conf
+# nginx cannot expand env vars in its config, so render the template into /run
+# (writable by www-data) and point nginx at it. Only our ${SERVER_ROOT} and
+# ${FASTCGI_READ_TIMEOUT} placeholders are substituted; nginx's own $uri/$document_root
+# are left intact. The fastcgi read timeout defaults to PHP's max_execution_time (so
+# nginx waits as long as PHP may run), overridable via NGINX_FASTCGI_READ_TIMEOUT.
+fcgi_timeout="${NGINX_FASTCGI_READ_TIMEOUT:-${PHP_MAX_EXECUTION_TIME:-30}}"
+[ "$fcgi_timeout" = "0" ] && fcgi_timeout=3600   # max_execution_time=0 (unlimited) -> 1h
+sed -e "s#\${SERVER_ROOT}#${SERVER_ROOT}#g" \
+    -e "s#\${FASTCGI_READ_TIMEOUT}#${fcgi_timeout}#g" \
+    /etc/nginx/nginx.conf.template > /run/nginx.conf
 exec nginx -c /run/nginx.conf -g "daemon off;"

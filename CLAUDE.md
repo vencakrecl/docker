@@ -187,6 +187,16 @@ test: the CLI SAPI forces `max_execution_time` to 0 so `php -r ini_get` can't re
 back; it does apply in the fpm/frankenphp web SAPI (verified by an HTTP request), and
 its `${ENV}` expansion is identical to the tested knobs.
 
+The web servers' backend timeout tracks `PHP_MAX_EXECUTION_TIME` so they don't 504/close
+*before* PHP's own limit fires: **fpm-nginx** renders `fastcgi_read_timeout` from it in
+the nginx run script (override `NGINX_FASTCGI_READ_TIMEOUT`; a goss test asserts the
+default 30s in `/run/nginx.conf`); **fpm-apache** sets `ProxyTimeout ${APACHE_PROXY_TIMEOUT}`
+in `vhost.conf`, defaulted+exported by the apache run script (override
+`APACHE_PROXY_TIMEOUT`); **frankenphp** has no FastCGI proxy and Caddy sets no short
+request timeout, so `max_execution_time` governs directly. All default to
+`PHP_MAX_EXECUTION_TIME` (or 30), and `0` (unlimited) maps to a 1h backend timeout so
+nginx/apache still start.
+
 The **fpm** images (fpm-nginx, fpm-apache) additionally copy `common/php-fpm.conf`
 to `/usr/local/etc/php-fpm.d/zzz-common.conf` (the `zzz-` prefix makes it load
 after the base `www.conf`/`zz-docker.conf`; php-fpm merges `[www]` across files, so
