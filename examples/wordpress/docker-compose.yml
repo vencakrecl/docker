@@ -27,8 +27,7 @@ x-app: &app
     PHP_UPLOAD_MAX_FILESIZE: 64M
     PHP_POST_MAX_SIZE: 128M
     PHP_MAX_INPUT_VARS: 3000
-    PHP_MAX_EXECUTION_TIME: 300
-    SERVER_TIMEOUT: 300          # web-server backend timeout must match PHP's, or nginx/apache 504 first
+    SERVER_TIMEOUT: 300          # web-server backend request timeout (seconds)
   volumes:
     - ./app:/app
   depends_on:

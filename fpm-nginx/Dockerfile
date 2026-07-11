@@ -33,8 +33,8 @@ COPY common/php-fpm.conf /usr/local/etc/php-fpm.d/zzz-common.conf
 # into /run/nginx.conf at container start.
 ENV SERVER_ROOT=/var/www/html
 # Backend request timeout (seconds), rendered into nginx's fastcgi_read_timeout so nginx
-# doesn't 504 before PHP finishes. Overridable at runtime; raise it (and PHP's
-# max_execution_time) together for long requests.
+# doesn't 504 before PHP finishes. Overridable at runtime; raise it for long requests
+# (PHP's own max_execution_time is an app/framework concern).
 ENV SERVER_TIMEOUT=30
 COPY fpm-nginx/nginx.conf /etc/nginx/nginx.conf.template
 # s6 services: php-fpm + nginx.
