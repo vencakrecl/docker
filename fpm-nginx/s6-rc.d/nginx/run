@@ -8,13 +8,12 @@ exec 2>&1
 # timeout, so nginx doesn't 504 before PHP finishes - raise it for long requests.
 # Must be a positive integer of seconds: nginx reads 0 as "time out immediately", so a
 # 0 (or non-numeric) value is a misconfiguration, not "unlimited".
-fcgi_timeout="$SERVER_TIMEOUT"
-case "$fcgi_timeout" in
+case "$SERVER_TIMEOUT" in
     '' | *[!0-9]* | 0)
-        echo "nginx: SERVER_TIMEOUT must be a positive integer of seconds (got '$fcgi_timeout')." >&2
+        echo "nginx: SERVER_TIMEOUT must be a positive integer of seconds (got '${SERVER_TIMEOUT:-}')." >&2
         exit 1 ;;
 esac
 sed -e "s#\${SERVER_ROOT}#${SERVER_ROOT}#g" \
-    -e "s#\${FASTCGI_READ_TIMEOUT}#${fcgi_timeout}#g" \
+    -e "s#\${FASTCGI_READ_TIMEOUT}#${SERVER_TIMEOUT}#g" \
     /etc/nginx/nginx.conf.template > /run/nginx.conf
 exec nginx -c /run/nginx.conf -g "daemon off;"
