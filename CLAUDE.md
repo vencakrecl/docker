@@ -221,14 +221,20 @@ the daemon.
   :9000, no extra tooling) is polled until FPM is up. (serversideup uses their
   `php-fpm-healthcheck` binary for the same check; we don't ship it.) s6-notifyoncheck
   must run from the service dir - no `cd` before it.
-- **Shutdown is not graceful (pre-existing limitation):** `docker stop` sends SIGTERM,
-  which s6 PID 1 does not act on, so the container is SIGKILLed after Docker's 10s
-  timeout (exit 137). SIGQUIT *does* trigger s6's shutdown but then hangs (services
-  never exit) - reproduced on Docker Desktop as both root and non-root and with the
-  original s6 config, so it is not caused by the readiness change. serversideup fixes
-  graceful stop with `STOPSIGNAL SIGQUIT` (+ `down-signal SIGQUIT` per service); we did
-  NOT adopt it because SIGQUIT hangs here. Revisit on Linux/CI (may not reproduce) or
-  via serversideup's full entrypoint before adding `STOPSIGNAL`.
+- **Graceful shutdown (`STOPSIGNAL SIGTERM`):** the `php:*-fpm` base sets
+  `STOPSIGNAL SIGQUIT` (php-fpm's own graceful signal, for when php-fpm is PID 1). But
+  here s6-overlay is PID 1, and its scandir signal handlers wire *SIGTERM* to the
+  shutdown (`.s6-svscan/SIGTERM` runs `s6-linux-init-shutdown`) while its *SIGQUIT*
+  handler is empty. With the inherited SIGQUIT, `docker stop` hit the no-op handler and
+  the container was SIGKILLed at the 10s timeout (exit 137). Fix: the web images
+  override `STOPSIGNAL SIGTERM`, so `docker stop` triggers s6's shutdown (clean exit 0
+  in ~3-4s). Each service also sets `down-signal SIGQUIT` so php-fpm/nginx/apache drain
+  in-flight requests (graceful) instead of being hard-terminated; s6 then SIGKILLs any
+  stragglers after `S6_KILL_GRACETIME` (3s default). Guarded by a CI "Graceful stop"
+  step (fails on exit 137 / timeout). frankenphp has no s6 and stops fine on the
+  default SIGTERM. (This is the opposite of serversideup's `STOPSIGNAL SIGQUIT`, which
+  suits their s6 build; ours needs SIGTERM - verify with `docker inspect -f
+  '{{.Config.StopSignal}}'` and the `.s6-svscan/` handlers if the base image changes.)
 - **Non-root (secure by default):** the web images run unprivileged as `www-data`
   on port **8080** (`USER ${SERVER_USER}`, `EXPOSE 8080`). `SERVER_USER` is a build
   ARG (default `www-data`, persisted as ENV) used for the `chown`, `set-user-id`, and

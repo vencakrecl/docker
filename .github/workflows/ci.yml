@@ -63,6 +63,24 @@ jobs:
         run: make "$IMAGE-$OS" PHP_VERSION="$PHP"
       - name: Test (goss)
         run: cd "$IMAGE" && GOSS_SLEEP=8 dgoss run "$IMAGE:$PHP-$OS"
+      # Regression guard for graceful shutdown: `docker stop` must stop the container
+      # cleanly, not get SIGKILLed at the timeout. The s6 web images override the
+      # base's STOPSIGNAL (SIGQUIT->SIGTERM) so s6's shutdown handler fires; frankenphp
+      # (no s6) stops on the default SIGTERM. Fail on exit 137 or a timeout-length stop.
+      - name: Graceful stop
+        run: |
+          cid=$(docker run -d "$IMAGE:$PHP-$OS")
+          sleep 8
+          start=$(date +%s)
+          docker stop -t 15 "$cid"
+          elapsed=$(( $(date +%s) - start ))
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$cid")
+          docker rm -f "$cid" >/dev/null || true
+          echo "stop: elapsed=${elapsed}s exit=${code}"
+          if [ "$code" = "137" ] || [ "$elapsed" -ge 12 ]; then
+            echo "::error::$IMAGE:$PHP-$OS did not stop gracefully (exit=$code, ${elapsed}s)"
+            exit 1
+          fi
       - name: Log in to GHCR
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
