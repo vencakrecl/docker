@@ -11,6 +11,17 @@ COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-packages nginx \
  && helper install-s6-overlay
 
+# Optionally build extra PHP extensions at build time, e.g.
+#   --build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"
+# PHP_EXTENSIONS are docker-php-ext-install names; extensions needing system libraries
+# also need those libs via PHP_EXTENSION_PACKAGES (the base image ships the toolchain).
+ARG PHP_EXTENSION_PACKAGES=""
+ARG PHP_EXTENSIONS=""
+RUN if [ -n "$PHP_EXTENSIONS" ]; then \
+      if [ -n "$PHP_EXTENSION_PACKAGES" ]; then helper install-packages $PHP_EXTENSION_PACKAGES; fi; \
+      helper install-docker-ext $PHP_EXTENSIONS; \
+    fi
+
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 # Shared PHP-FPM pool tuning (PHP_FPM_* env, defaults in the file).

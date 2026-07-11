@@ -9,6 +9,17 @@ COPY common/helper /usr/local/bin/helper
 # Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
 COPY common/healthcheck /usr/local/bin/healthcheck
 
+# Optionally build extra PHP extensions at build time, e.g.
+#   --build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"
+# PHP_EXTENSIONS are docker-php-ext-install names; extensions needing system libraries
+# also need those libs via PHP_EXTENSION_PACKAGES (the base image ships the toolchain).
+ARG PHP_EXTENSION_PACKAGES=""
+ARG PHP_EXTENSIONS=""
+RUN if [ -n "$PHP_EXTENSIONS" ]; then \
+      if [ -n "$PHP_EXTENSION_PACKAGES" ]; then helper install-packages $PHP_EXTENSION_PACKAGES; fi; \
+      helper install-docker-ext $PHP_EXTENSIONS; \
+    fi
+
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 

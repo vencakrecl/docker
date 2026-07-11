@@ -254,6 +254,16 @@ the daemon.
   on Linux; Docker Desktop auto-maps). Makefile passes them only when set (so no
   build warning on dind). Default unset = hardened uid 82/33. Runtime alternative:
   `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
+- **Extra PHP extensions (`PHP_EXTENSIONS`, build-time):** all three web images take
+  `PHP_EXTENSIONS` (space-separated `docker-php-ext-install` names) and, for extensions
+  that need system libraries, `PHP_EXTENSION_PACKAGES` (installed via
+  `helper install-packages` first). Both default empty (no-op). Example:
+  `--build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"`
+  (used by `examples/wordpress`). The base image ships the compile toolchain, so simple
+  extensions (mysqli, pdo_mysql, bcmath, ...) need no packages; only lib-backed ones
+  (gd, intl, zip) do. Extensions needing `docker-php-ext-configure` flags (e.g. gd with
+  jpeg/freetype) still need a derived Dockerfile. pecl/pie extensions aren't covered -
+  use the helper directly. Build-time only; keep the base images lean by default.
 - **Document root (`SERVER_ROOT`, runtime-overridable):** all three web images
   expose `SERVER_ROOT` (default fpm-nginx/fpm-apache `/var/www/html`, frankenphp
   `/app/public`) so the docroot can be changed with `docker run -e SERVER_ROOT=...`

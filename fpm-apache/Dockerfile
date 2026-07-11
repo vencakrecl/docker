@@ -13,6 +13,17 @@ COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-packages apache2 \
  && helper install-s6-overlay
 
+# Optionally build extra PHP extensions at build time, e.g.
+#   --build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"
+# PHP_EXTENSIONS are docker-php-ext-install names; extensions needing system libraries
+# also need those libs via PHP_EXTENSION_PACKAGES (the base image ships the toolchain).
+ARG PHP_EXTENSION_PACKAGES=""
+ARG PHP_EXTENSIONS=""
+RUN if [ -n "$PHP_EXTENSIONS" ]; then \
+      if [ -n "$PHP_EXTENSION_PACKAGES" ]; then helper install-packages $PHP_EXTENSION_PACKAGES; fi; \
+      helper install-docker-ext $PHP_EXTENSIONS; \
+    fi
+
 # Document root, overridable at runtime; httpd expands ${SERVER_ROOT} in vhost.conf.
 ENV SERVER_ROOT=/var/www/html
 
