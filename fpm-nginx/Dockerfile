@@ -32,6 +32,10 @@ COPY common/php-fpm.conf /usr/local/etc/php-fpm.d/zzz-common.conf
 # config ships as a template and the nginx s6 run script renders ${SERVER_ROOT}
 # into /run/nginx.conf at container start.
 ENV SERVER_ROOT=/var/www/html
+# Backend request timeout (seconds), rendered into nginx's fastcgi_read_timeout so nginx
+# doesn't 504 before PHP finishes. Overridable at runtime; raise it (and PHP's
+# max_execution_time) together for long requests.
+ENV SERVER_TIMEOUT=30
 COPY fpm-nginx/nginx.conf /etc/nginx/nginx.conf.template
 # s6 services: php-fpm + nginx.
 COPY fpm-nginx/s6-rc.d /etc/s6-overlay/s6-rc.d

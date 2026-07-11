@@ -4,15 +4,14 @@ exec 2>&1
 # nginx cannot expand env vars in its config, so render the template into /run
 # (writable by www-data) and point nginx at it. Only our ${SERVER_ROOT} and
 # ${FASTCGI_READ_TIMEOUT} placeholders are substituted; nginx's own $uri/$document_root
-# are left intact. The fastcgi read timeout defaults to PHP's max_execution_time (so
-# nginx waits as long as PHP may run), overridable via SERVER_TIMEOUT.
-fcgi_timeout="${SERVER_TIMEOUT:-${PHP_MAX_EXECUTION_TIME:-30}}"
+# are left intact. SERVER_TIMEOUT (an image ENV, default 30) is nginx's fastcgi read
+# timeout, so nginx doesn't 504 before PHP finishes - raise it for long requests.
 # Must be a positive integer of seconds: nginx reads 0 as "time out immediately", so a
-# 0 (or non-numeric) value is a misconfiguration, not "unlimited". PHP_MAX_EXECUTION_TIME=0
-# (unlimited) therefore has no backend-timeout equivalent - set SERVER_TIMEOUT explicitly.
+# 0 (or non-numeric) value is a misconfiguration, not "unlimited".
+fcgi_timeout="$SERVER_TIMEOUT"
 case "$fcgi_timeout" in
     '' | *[!0-9]* | 0)
-        echo "nginx: SERVER_TIMEOUT must be a positive integer of seconds (got '$fcgi_timeout'); set it explicitly." >&2
+        echo "nginx: SERVER_TIMEOUT must be a positive integer of seconds (got '$fcgi_timeout')." >&2
         exit 1 ;;
 esac
 sed -e "s#\${SERVER_ROOT}#${SERVER_ROOT}#g" \

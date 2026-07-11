@@ -187,20 +187,18 @@ test: the CLI SAPI forces `max_execution_time` to 0 so `php -r ini_get` can't re
 back; it does apply in the fpm/frankenphp web SAPI (verified by an HTTP request), and
 its `${ENV}` expansion is identical to the tested knobs.
 
-The web servers' backend timeout tracks `PHP_MAX_EXECUTION_TIME` so they don't 504/close
-*before* PHP's own limit fires, with a single unified override `SERVER_TIMEOUT` (seconds,
-same `SERVER_*` family as `SERVER_ROOT`/`SERVER_USER`): **fpm-nginx** renders
-`fastcgi_read_timeout` in the nginx run script (a goss test asserts the default 30s in
-`/run/nginx.conf`); **fpm-apache** sets `ProxyTimeout ${SERVER_TIMEOUT}` in `vhost.conf`,
-defaulted+exported by the apache run script; **frankenphp** has no FastCGI proxy and
-Caddy sets no short request timeout, so `max_execution_time` governs directly (so
-`SERVER_TIMEOUT` is a no-op there). `SERVER_TIMEOUT` defaults to `PHP_MAX_EXECUTION_TIME`
-(or 30) and must be a positive integer of seconds - a backend timeout of 0 is invalid
-(nginx reads `fastcgi_read_timeout 0` as *time out immediately*; Apache's `ProxyTimeout`
-must be >= 1), so it is not "unlimited". The run scripts reject 0/non-numeric with a
-clear error rather than guess a value; consequently `PHP_MAX_EXECUTION_TIME=0`
-(unlimited PHP) has no backend equivalent and requires setting `SERVER_TIMEOUT`
-explicitly on fpm-nginx/fpm-apache (frankenphp is unaffected - no proxy).
+`SERVER_TIMEOUT` (seconds, image ENV default **30**, same `SERVER_*` family as
+`SERVER_ROOT`/`SERVER_USER`) is the web server's backend request timeout - set it >=
+`max_execution_time` so the server doesn't 504/close *before* PHP finishes (raise both
+together for long requests). It is a standalone knob, **not** derived from
+`PHP_MAX_EXECUTION_TIME`. **fpm-nginx** renders it into `fastcgi_read_timeout` in the
+nginx run script (a goss test asserts the default 30s in `/run/nginx.conf`);
+**fpm-apache** expands `${SERVER_TIMEOUT}` in `vhost.conf`'s `ProxyTimeout` (it's an ENV,
+already in httpd's environment); **frankenphp** has no FastCGI proxy and Caddy sets no
+short request timeout, so it's a no-op there (`max_execution_time` governs directly).
+Must be a positive integer: a backend timeout of 0 is invalid (nginx reads
+`fastcgi_read_timeout 0` as *time out immediately*; Apache's `ProxyTimeout` must be >= 1),
+so the run scripts reject 0/non-numeric with a clear error rather than guess a value.
 
 The **fpm** images (fpm-nginx, fpm-apache) additionally copy `common/php-fpm.conf`
 to `/usr/local/etc/php-fpm.d/zzz-common.conf` (the `zzz-` prefix makes it load

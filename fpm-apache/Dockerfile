@@ -27,6 +27,10 @@ RUN helper install-extensions
 
 # Document root, overridable at runtime; httpd expands ${SERVER_ROOT} in vhost.conf.
 ENV SERVER_ROOT=/var/www/html
+# Backend request timeout (seconds); httpd expands ${SERVER_TIMEOUT} in vhost.conf's
+# ProxyTimeout so Apache doesn't 504 before PHP finishes. Overridable at runtime; raise
+# it (and PHP's max_execution_time) together for long requests.
+ENV SERVER_TIMEOUT=30
 
 # Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
 # USER and the chown below are fixed at build and the container runs non-root, so it
