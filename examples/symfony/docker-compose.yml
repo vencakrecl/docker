@@ -1,0 +1,30 @@
+# Symfony on all three web images. Install the app first (from the repo root):
+#   make example-symfony
+#   docker compose -f examples/symfony/docker-compose.yml up --build -d
+#   curl localhost:8081/   # fpm-nginx   (8082 fpm-apache, 8083 frankenphp)
+#   docker compose -f examples/symfony/docker-compose.yml down
+#
+# Symfony's docroot is public/. The app is mounted read-write (it writes to var/);
+# on Linux match ownership via the image's USER_ID/GROUP_ID build args or `user:` here.
+name: example-symfony
+
+x-app: &app
+  environment:
+    SERVER_ROOT: /app/public
+  volumes:
+    - ./app:/app
+  restart: unless-stopped
+
+services:
+  fpm-nginx:
+    <<: *app
+    build: { context: ../.., dockerfile: fpm-nginx/Dockerfile }
+    ports: ["8081:8080"]
+  fpm-apache:
+    <<: *app
+    build: { context: ../.., dockerfile: fpm-apache/Dockerfile }
+    ports: ["8082:8080"]
+  frankenphp:
+    <<: *app
+    build: { context: ../.., dockerfile: frankenphp/Dockerfile }
+    ports: ["8083:8080"]

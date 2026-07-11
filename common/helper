@@ -10,6 +10,10 @@
 #   detect-os                       print distro family: debian | alpine
 #   set-user-id <user> <uid> [gid]  change an existing user's uid/gid (host match)
 #   install-packages <pkg...>       install OS packages (apt-get or apk)
+#   install-build-deps [pkg...]     install $PHPIZE_DEPS + unzip (+extras), removable group
+#   remove-build-deps               drop that group (Alpine; no-op on Debian)
+#   install-extensions              install PHP_EXTENSIONS/PHP_PECL_EXTENSIONS/
+#                                   PHP_PIE_EXTENSIONS/PHP_EXTENSION_PACKAGES (from env)
 #   install-s6-overlay              install s6-overlay (process supervisor / init)
 #   install-composer                install Composer to /usr/local/bin/composer
 #   install-pie                     install PIE (PHP ext installer) to /usr/local/bin/pie
@@ -205,6 +209,45 @@ install_docker_skip_enable_ext() {
     done
 }
 
+# install_build_deps [pkgs...] - install the compile toolchain ($PHPIZE_DEPS) and unzip
+# (PIE fetches packages as zips), plus any extra packages, as a *removable* group for
+# building pecl/pie extensions. On Alpine the toolchain is absent, so it is added as an
+# apk --virtual group that remove-build-deps drops again; on Debian the base php image
+# already ships $PHPIZE_DEPS (kept in place), so only unzip and the extras are added.
+install_build_deps() {
+    case "$(detect_os)" in
+        alpine) apk add --no-cache --virtual .helper-build-deps $PHPIZE_DEPS unzip "$@" ;;
+        debian) install_packages $PHPIZE_DEPS unzip "$@" ;;
+        *) echo "install-build-deps: unsupported OS" >&2; return 1 ;;
+    esac
+}
+
+# remove_build_deps - drop the group added by install_build_deps to slim the image.
+# Alpine only; on Debian $PHPIZE_DEPS belongs to the base image, so this is a no-op.
+remove_build_deps() {
+    case "$(detect_os)" in
+        alpine) apk del .helper-build-deps 2>/dev/null || true ;;
+        debian) : ;;
+    esac
+}
+
+# install_extensions - install the extensions named by the build args (exposed as env in
+# the RUN): PHP_EXTENSIONS (docker-php-ext-install), PHP_PECL_EXTENSIONS, PHP_PIE_EXTENSIONS,
+# with PHP_EXTENSION_PACKAGES for extra system libs (kept). pecl/pie compile from source,
+# so their toolchain (+unzip for pie) is added and removed to keep the image lean. No-op
+# when all are empty.
+install_extensions() {
+    set -eu
+    if [ -n "${PHP_EXTENSION_PACKAGES:-}" ]; then install_packages $PHP_EXTENSION_PACKAGES; fi
+    if [ -n "${PHP_EXTENSIONS:-}" ]; then install_docker_ext $PHP_EXTENSIONS; fi
+    if [ -n "${PHP_PECL_EXTENSIONS:-}" ] || [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then
+        install_build_deps
+        if [ -n "${PHP_PECL_EXTENSIONS:-}" ]; then install_pecl_ext $PHP_PECL_EXTENSIONS; fi
+        if [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then install_pie; install_pie_ext $PHP_PIE_EXTENSIONS; fi
+        remove_build_deps
+    fi
+}
+
 usage() {
     # print the leading comment header, up to the "Pinned tool versions" line
     sed -n '2,/^# Pinned/p' "$0" | sed 's/^# \{0,1\}//'
@@ -224,6 +267,9 @@ case "$cmd" in
     detect-os) detect_os ;;
     set-user-id) set_user_id "$@" ;;
     install-packages) install_packages "$@" ;;
+    install-build-deps) install_build_deps "$@" ;;
+    remove-build-deps) remove_build_deps ;;
+    install-extensions) install_extensions ;;
     install-s6-overlay) install_s6_overlay ;;
     install-composer) install_composer ;;
     install-pie) install_pie ;;

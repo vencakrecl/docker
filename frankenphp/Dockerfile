@@ -2,12 +2,24 @@
 # FrankenPHP. BASE_IMAGE is a dunglas/frankenphp:*-bookworm (Debian) or
 # dunglas/frankenphp:*-alpine image, set by the Makefile.
 # The base image already ships the Caddy/FrankenPHP entrypoint serving /app/public.
-ARG BASE_IMAGE=dunglas/frankenphp:php8.4-bookworm
+ARG BASE_IMAGE=dunglas/frankenphp:php8.5-bookworm
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
 # Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
 COPY common/healthcheck /usr/local/bin/healthcheck
+
+# Optionally build extra PHP extensions at build time (all optional, space-separated):
+#   PHP_EXTENSIONS          docker-php-ext-install names (bundled), e.g. "mysqli gd"
+#   PHP_PECL_EXTENSIONS     PECL packages, e.g. "redis"
+#   PHP_PIE_EXTENSIONS      PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
+#   PHP_EXTENSION_PACKAGES  extra system libs some extensions need (e.g. "libpng-dev"), kept
+# helper install-extensions reads these and adds/removes the pecl/pie build deps itself.
+ARG PHP_EXTENSION_PACKAGES=""
+ARG PHP_EXTENSIONS=""
+ARG PHP_PECL_EXTENSIONS=""
+ARG PHP_PIE_EXTENSIONS=""
+RUN helper install-extensions
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini

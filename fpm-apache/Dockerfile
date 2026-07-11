@@ -4,7 +4,7 @@
 # Debian and Alpine lay Apache out very differently (config tree, module loading,
 # control binary), so the build branches on the detected distro below.
 # BASE_IMAGE is a php:*-fpm (Debian) or php:*-fpm-alpine image, set by the Makefile.
-ARG BASE_IMAGE=php:8.4-fpm
+ARG BASE_IMAGE=php:8.5-fpm
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
@@ -12,6 +12,18 @@ COPY common/helper /usr/local/bin/helper
 COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-packages apache2 \
  && helper install-s6-overlay
+
+# Optionally build extra PHP extensions at build time (all optional, space-separated):
+#   PHP_EXTENSIONS          docker-php-ext-install names (bundled), e.g. "mysqli gd"
+#   PHP_PECL_EXTENSIONS     PECL packages, e.g. "redis"
+#   PHP_PIE_EXTENSIONS      PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
+#   PHP_EXTENSION_PACKAGES  extra system libs some extensions need (e.g. "libpng-dev"), kept
+# helper install-extensions reads these and adds/removes the pecl/pie build deps itself.
+ARG PHP_EXTENSION_PACKAGES=""
+ARG PHP_EXTENSIONS=""
+ARG PHP_PECL_EXTENSIONS=""
+ARG PHP_PIE_EXTENSIONS=""
+RUN helper install-extensions
 
 # Document root, overridable at runtime; httpd expands ${SERVER_ROOT} in vhost.conf.
 ENV SERVER_ROOT=/var/www/html
