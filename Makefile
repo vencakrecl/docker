@@ -16,11 +16,19 @@ DOCKER_VERSION ?= 29
 REGISTRY       ?=
 PLATFORM       ?=
 
+# For local development: set USER_ID/GROUP_ID to match your host user so
+# bind-mounted files get the right owner (Linux hosts). Only passed when set.
+#   make fpm-nginx-alpine USER_ID=$(id -u) GROUP_ID=$(id -g)
+USER_ID  ?=
+GROUP_ID ?=
+
 # $(call build,<image>,<base-image>,<tag>)
 BUILDX = docker buildx build --load $(if $(PLATFORM),--platform $(PLATFORM))
 define build
 	$(BUILDX) \
 	  --build-arg BASE_IMAGE=$(2) \
+	  $(if $(USER_ID),--build-arg USER_ID=$(USER_ID)) \
+	  $(if $(GROUP_ID),--build-arg GROUP_ID=$(GROUP_ID)) \
 	  -t $(REGISTRY)$(1):$(3) \
 	  -f $(1)/Dockerfile .
 endef

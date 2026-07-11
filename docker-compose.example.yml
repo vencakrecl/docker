@@ -1,0 +1,50 @@
+# Example Compose setup for local development with these images.
+#
+# The web images listen on 8080 and run unprivileged (www-data). To have
+# bind-mounted files owned by your host user on Linux, pass your uid/gid:
+#
+#   USER_ID=$(id -u) GROUP_ID=$(id -g) \
+#     docker compose -f docker-compose.example.yml up --build
+#
+# On Docker Desktop (macOS/Windows) the USER_ID/GROUP_ID args are unnecessary -
+# bind-mount ownership is mapped to your host user automatically.
+
+services:
+  app:
+    build:
+      context: .                        # repo root: the Dockerfiles COPY common/*
+      dockerfile: fpm-nginx/Dockerfile
+      args:
+        BASE_IMAGE: php:8.4-fpm-alpine
+        USER_ID: ${USER_ID:-}           # empty = hardened default (uid 82)
+        GROUP_ID: ${GROUP_ID:-}
+    # Once the images are published, drop `build:` and use e.g.:
+    #   image: ghcr.io/<owner>/fpm-nginx:8.4-alpine
+    ports:
+      - "8080:8080"                     # host:container (container listens on 8080)
+    environment:
+      PHP_MEMORY_LIMIT: "512M"          # overrides the 128M default (php.ini ${...})
+    volumes:
+      - ./public:/var/www/html          # your app's web root
+    depends_on:
+      db:
+        condition: service_healthy      # wait until Postgres is actually ready
+
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: secret
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Rootless Docker-in-Docker (optional). Needs privileged mode for the daemon.
+  # dind:
+  #   build:
+  #     context: .
+  #     dockerfile: dind/Dockerfile
+  #     args:
+  #       BASE_IMAGE: docker:29-dind-rootless
+  #   privileged: true

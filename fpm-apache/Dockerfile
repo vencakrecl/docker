@@ -39,6 +39,12 @@ RUN set -eux; \
         echo "Include /etc/apache2/fpm-vhost.conf" >> /etc/apache2/httpd.conf; \
     fi
 
+# Optionally remap www-data to the host user's uid/gid for local development
+# (done before the chown so it picks up the new id). Unset = hardened default.
+ARG USER_ID
+ARG GROUP_ID
+RUN if [ -n "$USER_ID" ]; then helper set-user-id www-data "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
+
 # Secure by default: run unprivileged as www-data. Make Apache's runtime and log
 # dirs writable by it (port 8080 needs no privilege).
 RUN chown -R www-data:www-data /run /var/log/apache2 /var/www/html 2>/dev/null || true

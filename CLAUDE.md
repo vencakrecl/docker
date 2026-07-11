@@ -42,6 +42,9 @@ See `README.md` for the authoritative scheme. Summary:
 
 - `detect-arch` -> `amd64` | `arm64` (canonical, Docker-style; from `uname -m`)
 - `detect-os` -> `debian` | `alpine`
+- `set-user-id <user> <uid> [gid]` -> rewrites the user's uid/gid in
+  /etc/passwd + /etc/group (distro-agnostic; Alpine has no usermod). Run it
+  *before* the image's `chown -R <user>` so the chown uses the new id.
 - `install-packages <pkgs...>` -> apt-get or apk, with cache cleanup
 - `install-s6-overlay` -> s6-overlay init/supervisor (noarch + per-arch tarballs)
 - `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
@@ -139,6 +142,12 @@ fall back to 128M). To add a knob: add `key = ${ENV_VAR:-default}` to
   `Listen 80`→`8080` and `User/Group` to www-data per distro, chown
   `/var/log/apache2`). frankenphp uses `ENV SERVER_NAME=:8080` (plain HTTP, no
   443/auto-TLS) and chowns `/app /config /data`.
+- **Host-user matching (local dev):** the web images take `USER_ID`/`GROUP_ID`
+  build args; when set they `helper set-user-id www-data ...` *before* the chown,
+  so www-data gets the host uid and bind-mounted files are owned correctly (matters
+  on Linux; Docker Desktop auto-maps). Makefile passes them only when set (so no
+  build warning on dind). Default unset = hardened uid 82/33. Runtime alternative:
+  `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
 - `frankenphp`: `dunglas/frankenphp:php<ver>-bookworm|-alpine` base; serves `/app`.
 - `dind`: thin layer over `docker:*-dind-rootless` (daemon runs as the `rootless`
   user, uid 1000, via rootlesskit). Alpine-only upstream, so dind is a single
