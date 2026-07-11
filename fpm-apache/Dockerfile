@@ -11,6 +11,9 @@ COPY common/helper /usr/local/bin/helper
 RUN helper install-packages apache2 \
  && helper install-s6-overlay
 
+# Document root, overridable at runtime; httpd expands ${SERVER_ROOT} in vhost.conf.
+ENV SERVER_ROOT=/var/www/html
+
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 # Shared PHP-FPM pool tuning (PHP_FPM_* env, defaults in the file).
@@ -46,6 +49,11 @@ RUN set -eux; \
 ARG USER_ID
 ARG GROUP_ID
 RUN if [ -n "$USER_ID" ]; then helper set-user-id www-data "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
+
+# Hello-world landing page. Debian's apache2 ships a default index.html; drop it
+# so our index.php is the served DirectoryIndex (Alpine ships none - harmless).
+RUN rm -f /var/www/html/index.html
+COPY common/index.php /var/www/html/index.php
 
 # Secure by default: run unprivileged as www-data. Make Apache's runtime and log
 # dirs writable by it (port 8080 needs no privilege).

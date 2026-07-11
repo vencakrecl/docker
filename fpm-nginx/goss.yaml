@@ -1,6 +1,6 @@
 # Runtime checks for a running fpm-nginx container (dgoss run ...).
-# s6-overlay brings up php-fpm and nginx; a missing .php exercises the fastcgi
-# path (php-fpm returns 404; a 502 would mean php-fpm is down).
+# s6-overlay brings up php-fpm and nginx; the hello-world index.php is served at /
+# via the fastcgi path (200 + body proves php-fpm is up; a 502 would mean it's down).
 process:
   php-fpm:
     running: true
@@ -49,6 +49,7 @@ command:
     exit-status: 0
     stderr: ["pm.max_requests = 500"]
 http:
-  http://localhost:8080/ping.php:
-    status: 404
+  http://localhost:8080/:
+    status: 200
+    body: ["Hello, World!"]
     timeout: 5000

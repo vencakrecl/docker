@@ -100,8 +100,9 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
 - Requires `goss` + `dgoss` on PATH (the target prints an install hint if absent);
   on macOS also set `GOSS_PATH` to a Linux goss binary. dind runs `--privileged`.
 - What each checks: the web images assert `runs-as-non-root` (`id -u` not 0), PHP
-  CLI executes (`php -r 'echo 40+2'`→42), and an HTTP status on `:8080` (fpm-nginx
-  `/ping.php`→404, fpm-apache `/`→403, frankenphp `/`→200); fpm images also check
+  CLI executes (`php -r 'echo 40+2'`→42), and that the shared hello-world
+  `common/index.php` is served at `/` on `:8080` (200 + body `Hello, World!`,
+  proving PHP executes end-to-end through the web server); fpm images also check
   php-fpm/nginx processes.
 - Config is verified via one `env-*` test per env var (no separate default-value
   checks - they were redundant): set the var *inline* in the goss `exec`
@@ -200,7 +201,18 @@ refuses to start - the env overrides are interdependent.
   on Linux; Docker Desktop auto-maps). Makefile passes them only when set (so no
   build warning on dind). Default unset = hardened uid 82/33. Runtime alternative:
   `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
-- `frankenphp`: `dunglas/frankenphp:php<ver>-bookworm|-alpine` base; serves `/app`.
+- **Document root (`SERVER_ROOT`, runtime-overridable):** all three web images
+  expose `SERVER_ROOT` (default fpm-nginx/fpm-apache `/var/www/html`, frankenphp
+  `/app/public`) so the docroot can be changed with `docker run -e SERVER_ROOT=...`
+  (mount your app there). Wiring differs by server: frankenphp's Caddyfile reads it
+  natively (`root {$SERVER_ROOT:public/}`); Apache expands `${SERVER_ROOT}` in
+  `vhost.conf` at config-parse time; nginx *cannot* expand env vars, so `nginx.conf`
+  ships as `nginx.conf.template` and the nginx s6 run script renders `${SERVER_ROOT}`
+  into `/run/nginx.conf` (via `sed`, only that token - `$uri`/`$document_root` are
+  left intact) and starts `nginx -c /run/nginx.conf`. The shared hello-world
+  `common/index.php` is COPYed into each default docroot.
+- `frankenphp`: `dunglas/frankenphp:php<ver>-bookworm|-alpine` base; serves
+  `/app/public` (the base Caddyfile's `SERVER_ROOT`, defaulted here to `/app/public`).
 - `dind`: thin layer over `docker:*-dind-rootless` (daemon runs as the `rootless`
   user, uid 1000, via rootlesskit). Alpine-only upstream, so dind is a single
   variant (no debian/alpine split). Base entrypoint/CMD/USER inherited; run the

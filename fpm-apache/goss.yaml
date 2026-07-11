@@ -1,5 +1,6 @@
 # Runtime checks for a running fpm-apache container (dgoss run ...).
-# s6-overlay brings up php-fpm and Apache; empty docroot with -Indexes -> 403.
+# s6-overlay brings up php-fpm and Apache; the hello-world index.php is proxied
+# to php-fpm and served at / (200), proving PHP executes end-to-end through Apache.
 # No web-server process check: Apache's process is httpd on Alpine, apache2 on
 # Debian. HTTP is used instead of a port check (Apache binds IPv6 on Alpine,
 # IPv4 on Debian).
@@ -50,5 +51,6 @@ command:
     stderr: ["pm.max_requests = 500"]
 http:
   http://localhost:8080/:
-    status: 403
+    status: 200
+    body: ["Hello, World!"]
     timeout: 5000

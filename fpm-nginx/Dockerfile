@@ -14,9 +14,16 @@ COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
 # Shared PHP-FPM pool tuning (PHP_FPM_* env, defaults in the file).
 COPY common/php-fpm.conf /usr/local/etc/php-fpm.d/zzz-common.conf
 
-COPY fpm-nginx/nginx.conf /etc/nginx/nginx.conf
+# Document root, overridable at runtime. nginx cannot expand env vars, so the
+# config ships as a template and the nginx s6 run script renders ${SERVER_ROOT}
+# into /run/nginx.conf at container start.
+ENV SERVER_ROOT=/var/www/html
+COPY fpm-nginx/nginx.conf /etc/nginx/nginx.conf.template
 # s6 services: php-fpm + nginx.
 COPY fpm-nginx/s6-rc.d /etc/s6-overlay/s6-rc.d
+
+# Hello-world landing page (docroot is /var/www/html).
+COPY common/index.php /var/www/html/index.php
 
 # Optionally remap www-data to the host user's uid/gid for local development
 # (bind-mounted files then get the right owner on Linux hosts). Done before the

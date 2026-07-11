@@ -98,6 +98,14 @@ jobs:
           sudo curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o /usr/local/bin/goss
           sudo curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o /usr/local/bin/dgoss
           sudo chmod +x /usr/local/bin/goss /usr/local/bin/dgoss
+      # ubuntu-24.04 runners set kernel.apparmor_restrict_unprivileged_userns=1,
+      # which blocks rootlesskit's user-namespace creation (fork/exec /proc/self/exe:
+      # operation not permitted) even inside a --privileged container - the restriction
+      # is a host kernel sysctl, not lifted by the container's apparmor=unconfined.
+      # rootlesskit lives inside the dind image, so a per-binary AppArmor profile
+      # doesn't apply; disable the restriction on this ephemeral runner instead.
+      - name: Allow unprivileged user namespaces (rootless dind)
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Build + test
         run: make test-dind
       - name: Log in to GHCR

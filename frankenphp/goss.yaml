@@ -20,4 +20,5 @@ command:
 http:
   http://localhost:8080/:
     status: 200
+    body: ["Hello, World!"]
     timeout: 5000
