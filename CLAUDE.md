@@ -46,9 +46,9 @@ See `README.md` for the authoritative scheme. Summary:
   /etc/passwd + /etc/group (distro-agnostic; Alpine has no usermod). Run it
   *before* the image's `chown -R <user>` so the chown uses the new id.
 - `install-packages <pkgs...>` -> apt-get or apk, with cache cleanup
-- `install-build-deps [pkgs...]` / `remove-build-deps` -> add `$PHPIZE_DEPS` (+extras) as
-  a removable group for building pecl/pie exts, then drop it (Alpine `apk --virtual`;
-  no-op remove on Debian, whose base already ships the toolchain)
+- `install-build-deps [pkgs...]` / `remove-build-deps` -> add `$PHPIZE_DEPS` + `unzip`
+  (+extras) as a removable group for building pecl/pie exts, then drop it (Alpine
+  `apk --virtual`; no-op remove on Debian, whose base already ships the toolchain)
 - `install-extensions` -> install the `PHP_EXTENSIONS`/`PHP_PECL_EXTENSIONS`/
   `PHP_PIE_EXTENSIONS`/`PHP_EXTENSION_PACKAGES` build args (read from env); wraps the
   above so each web Dockerfile is just the 4 `ARG`s + `RUN helper install-extensions`
