@@ -55,4 +55,10 @@ USER ${SERVER_USER}
 WORKDIR /var/www/html
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["healthcheck"]
+# The php:*-fpm base sets STOPSIGNAL SIGQUIT (php-fpm's own graceful signal), but here
+# s6-overlay is PID 1 and only its SIGTERM handler triggers shutdown (its SIGQUIT
+# handler is empty). Override so `docker stop` actually stops s6 gracefully instead of
+# being SIGKILLed at the timeout. Per-service `down-signal SIGQUIT` then drains php-fpm
+# and nginx (finish in-flight requests) rather than hard-killing them.
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["/init"]
