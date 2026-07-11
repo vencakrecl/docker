@@ -6,14 +6,19 @@
 #
 # Symfony's docroot is public/. The app is mounted read-write (it writes to var/);
 # on Linux match ownership via the image's USER_ID/GROUP_ID build args or `user:` here.
+# PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
+# Values follow Symfony's performance docs: https://symfony.com/doc/current/performance.html
 name: example-symfony
 
 x-app: &app
   environment:
     SERVER_ROOT: /app/public
+    PHP_OPCACHE_MEMORY_CONSUMPTION: 256
+    PHP_OPCACHE_MAX_ACCELERATED_FILES: 32531
+    PHP_OPCACHE_INTERNED_STRINGS_BUFFER: 32
+    PHP_REALPATH_CACHE_TTL: 600
   volumes:
     - ./app:/app
-    - ./php.ini:/usr/local/etc/php/conf.d/zzz-app.ini:ro
   restart: unless-stopped
 
 services:

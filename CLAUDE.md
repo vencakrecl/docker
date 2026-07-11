@@ -173,7 +173,31 @@ runtime with no rebuild - e.g. `memory_limit = ${PHP_MEMORY_LIMIT:-128M}`, overr
 by `docker run -e PHP_MEMORY_LIMIT=512M`. The default lives in the ini (not in a
 Dockerfile `ENV`); do not use a bare `${VAR}` (empty value makes PHP warn and
 fall back to 128M). To add a knob: add `key = ${ENV_VAR:-default}` to
-`common/php.ini` - no Dockerfile change. Not applied to `dind` (not a PHP image).
+`common/php.ini` *and* an `env-*` goss test in each web image. Not applied to `dind`
+(not a PHP image). Current knobs (all defaulting to PHP's own defaults, bar an explicit
+UTC timezone): `PHP_MEMORY_LIMIT` (128M), `PHP_UPLOAD_MAX_FILESIZE` (2M),
+`PHP_POST_MAX_SIZE` (8M), `PHP_MAX_INPUT_VARS` (1000), `PHP_DATE_TIMEZONE` (UTC),
+`PHP_OPCACHE_MEMORY_CONSUMPTION` (128), `PHP_OPCACHE_MAX_ACCELERATED_FILES` (10000),
+`PHP_OPCACHE_INTERNED_STRINGS_BUFFER` (8), `PHP_OPCACHE_VALIDATE_TIMESTAMPS` (1),
+`PHP_REALPATH_CACHE_SIZE` (4096K), `PHP_REALPATH_CACHE_TTL` (120). Each has an `env-*`
+goss test that sets it inline and asserts `ini_get`. The `examples/<fw>` composes tune
+PHP per framework purely through these env vars (no mounted `php.ini`).
+
+`SERVER_TIMEOUT` (seconds, image ENV default **30**, same `SERVER_*` family as
+`SERVER_ROOT`/`SERVER_USER`) is the single request time budget: `common/php.ini` sets
+`max_execution_time = ${SERVER_TIMEOUT}` *and* the web servers use it as their backend
+timeout, so PHP's limit and the proxy stay aligned by construction (the proxy waits
+exactly as long as PHP may run - no "raise both"). **fpm-nginx** renders it into
+`fastcgi_read_timeout` in the nginx run script (a goss test asserts the default 30s in
+`/run/nginx.conf`); **fpm-apache** expands `${SERVER_TIMEOUT}` in `vhost.conf`'s
+`ProxyTimeout`; **frankenphp** has no FastCGI proxy, but `max_execution_time` still caps
+requests there. Every web image therefore declares `ENV SERVER_TIMEOUT=30` (the shared
+php.ini needs it defined). Must be a positive integer for the fpm images: a backend
+timeout of 0 is invalid (nginx reads `fastcgi_read_timeout 0` as *time out immediately*;
+Apache's `ProxyTimeout` must be >= 1), so their run scripts reject 0/non-numeric with a
+clear error; on frankenphp `SERVER_TIMEOUT=0` just means `max_execution_time=0`
+(unlimited PHP), which is valid. Note the CLI SAPI forces `max_execution_time` to 0, so
+that value isn't `ini_get`-testable (unlike the other php.ini knobs).
 
 The **fpm** images (fpm-nginx, fpm-apache) additionally copy `common/php-fpm.conf`
 to `/usr/local/etc/php-fpm.d/zzz-common.conf` (the `zzz-` prefix makes it load

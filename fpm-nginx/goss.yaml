@@ -21,6 +21,12 @@ command:
   healthcheck:
     exec: healthcheck
     exit-status: 0
+  # fastcgi_read_timeout is rendered from SERVER_TIMEOUT (default 30) so nginx doesn't
+  # 504 before PHP's limit.
+  nginx-fastcgi-read-timeout:
+    exec: grep -oE 'fastcgi_read_timeout [0-9]+s' /run/nginx.conf
+    exit-status: 0
+    stdout: ["fastcgi_read_timeout 30s"]
   # --- one test per env var: set it inline; php/php-fpm re-parse config each run.
   # These also prove the shared config is loaded (e.g. max_children=40 comes from
   # our env-driven common/php-fpm.conf; the base image would show its hardcoded 5)
@@ -29,6 +35,46 @@ command:
     exec: env PHP_MEMORY_LIMIT=512M php -r 'echo ini_get("memory_limit");'
     exit-status: 0
     stdout: ["512M"]
+  env-php-upload-max-filesize:
+    exec: env PHP_UPLOAD_MAX_FILESIZE=64M php -r 'echo ini_get("upload_max_filesize");'
+    exit-status: 0
+    stdout: ["64M"]
+  env-php-post-max-size:
+    exec: env PHP_POST_MAX_SIZE=128M php -r 'echo ini_get("post_max_size");'
+    exit-status: 0
+    stdout: ["128M"]
+  env-php-max-input-vars:
+    exec: env PHP_MAX_INPUT_VARS=5000 php -r 'echo ini_get("max_input_vars");'
+    exit-status: 0
+    stdout: ["5000"]
+  env-php-date-timezone:
+    exec: env PHP_DATE_TIMEZONE=Europe/Prague php -r 'echo ini_get("date.timezone");'
+    exit-status: 0
+    stdout: ["Europe/Prague"]
+  env-php-opcache-memory-consumption:
+    exec: env PHP_OPCACHE_MEMORY_CONSUMPTION=256 php -r 'echo ini_get("opcache.memory_consumption");'
+    exit-status: 0
+    stdout: ["256"]
+  env-php-opcache-max-accelerated-files:
+    exec: env PHP_OPCACHE_MAX_ACCELERATED_FILES=32531 php -r 'echo ini_get("opcache.max_accelerated_files");'
+    exit-status: 0
+    stdout: ["32531"]
+  env-php-opcache-interned-strings-buffer:
+    exec: env PHP_OPCACHE_INTERNED_STRINGS_BUFFER=32 php -r 'echo ini_get("opcache.interned_strings_buffer");'
+    exit-status: 0
+    stdout: ["32"]
+  env-php-opcache-validate-timestamps:
+    exec: env PHP_OPCACHE_VALIDATE_TIMESTAMPS=0 php -r 'echo ini_get("opcache.validate_timestamps");'
+    exit-status: 0
+    stdout: ["0"]
+  env-php-realpath-cache-size:
+    exec: env PHP_REALPATH_CACHE_SIZE=8192K php -r 'echo ini_get("realpath_cache_size");'
+    exit-status: 0
+    stdout: ["8192K"]
+  env-php-realpath-cache-ttl:
+    exec: env PHP_REALPATH_CACHE_TTL=600 php -r 'echo ini_get("realpath_cache_ttl");'
+    exit-status: 0
+    stdout: ["600"]
   env-php-fpm-pm:
     exec: env PHP_FPM_PM=static php-fpm -tt
     exit-status: 0
