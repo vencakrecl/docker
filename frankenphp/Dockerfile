@@ -2,7 +2,7 @@
 # FrankenPHP. BASE_IMAGE is a dunglas/frankenphp:*-bookworm (Debian) or
 # dunglas/frankenphp:*-alpine image, set by the Makefile.
 # The base image already ships the Caddy/FrankenPHP entrypoint serving /app/public.
-ARG BASE_IMAGE=dunglas/frankenphp:php8.4-bookworm
+ARG BASE_IMAGE=dunglas/frankenphp:php8.5-bookworm
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper

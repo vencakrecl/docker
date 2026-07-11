@@ -19,13 +19,13 @@ x-app: &app
 services:
   fpm-nginx:
     <<: *app
-    build: { context: ../.., dockerfile: fpm-nginx/Dockerfile, args: { BASE_IMAGE: "php:8.5-fpm" } }
+    build: { context: ../.., dockerfile: fpm-nginx/Dockerfile }
     ports: ["8081:8080"]
   fpm-apache:
     <<: *app
-    build: { context: ../.., dockerfile: fpm-apache/Dockerfile, args: { BASE_IMAGE: "php:8.5-fpm" } }
+    build: { context: ../.., dockerfile: fpm-apache/Dockerfile }
     ports: ["8082:8080"]
   frankenphp:
     <<: *app
-    build: { context: ../.., dockerfile: frankenphp/Dockerfile, args: { BASE_IMAGE: "dunglas/frankenphp:php8.5-bookworm" } }
+    build: { context: ../.., dockerfile: frankenphp/Dockerfile }
     ports: ["8083:8080"]

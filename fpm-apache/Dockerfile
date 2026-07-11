@@ -4,7 +4,7 @@
 # Debian and Alpine lay Apache out very differently (config tree, module loading,
 # control binary), so the build branches on the detected distro below.
 # BASE_IMAGE is a php:*-fpm (Debian) or php:*-fpm-alpine image, set by the Makefile.
-ARG BASE_IMAGE=php:8.4-fpm
+ARG BASE_IMAGE=php:8.5-fpm
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper

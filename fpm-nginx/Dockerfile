@@ -2,7 +2,7 @@
 # PHP-FPM behind nginx, supervised by s6-overlay (/init as PID 1).
 # Secure by default: runs unprivileged as www-data on a high port (8080).
 # BASE_IMAGE is a php:*-fpm (Debian) or php:*-fpm-alpine image, set by the Makefile.
-ARG BASE_IMAGE=php:8.4-fpm
+ARG BASE_IMAGE=php:8.5-fpm
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
