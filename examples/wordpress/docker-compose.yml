@@ -1,0 +1,52 @@
+# WordPress on all three web images. Install the core first (from the repo root):
+#   make example-wordpress
+#   docker compose -f examples/wordpress/docker-compose.yml up --build -d
+#   curl -L localhost:8081/   # fpm-nginx   (8082 fpm-apache, 8083 frankenphp)
+#   docker compose -f examples/wordpress/docker-compose.yml down
+#
+# WordPress serves from the project root (docroot = /app), and needs a database plus
+# the mysqli + gd extensions (not in the base images) to complete setup - a fresh
+# core just redirects to the installer. A `db` (MariaDB) service is included; add the
+# extensions to the images (helper install-docker-ext mysqli gd) to finish install.
+name: example-wordpress
+
+x-app: &app
+  environment:
+    SERVER_ROOT: /app
+    WORDPRESS_DB_HOST: db
+    WORDPRESS_DB_USER: wordpress
+    WORDPRESS_DB_PASSWORD: wordpress
+    WORDPRESS_DB_NAME: wordpress
+  volumes:
+    - ./app:/app
+  depends_on:
+    - db
+  restart: unless-stopped
+
+services:
+  fpm-nginx:
+    <<: *app
+    build: { context: ../.., dockerfile: fpm-nginx/Dockerfile, args: { BASE_IMAGE: "php:8.5-fpm" } }
+    ports: ["8081:8080"]
+  fpm-apache:
+    <<: *app
+    build: { context: ../.., dockerfile: fpm-apache/Dockerfile, args: { BASE_IMAGE: "php:8.5-fpm" } }
+    ports: ["8082:8080"]
+  frankenphp:
+    <<: *app
+    build: { context: ../.., dockerfile: frankenphp/Dockerfile, args: { BASE_IMAGE: "dunglas/frankenphp:php8.5-bookworm" } }
+    ports: ["8083:8080"]
+
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - db-data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  db-data:
