@@ -5,17 +5,23 @@ Each subfolder runs a real PHP framework on all three web images (`fpm-nginx`,
 front controller: docroot via `SERVER_ROOT`, routing, the built-in `HEALTHCHECK`, and
 graceful `docker stop`.
 
-Only the `docker-compose.yml` files are committed. The framework skeleton is installed
-on demand into `<framework>/app/` (git-ignored) by a `make` target.
+Only the `docker-compose.yml` and `php.ini` files are committed. The framework skeleton
+is installed on demand into `<framework>/app/` (git-ignored) by a `make` target.
+
+Each folder also ships a `php.ini` tuned to that framework's documented recommendations
+(OPcache sizing for Symfony/Laravel/Nette, upload/memory limits for WordPress). It is
+mounted into the image's `conf.d` after the shared `zz-common.ini`, so it wins. These
+are dev-tuned: `opcache.validate_timestamps` is left on so edits show up - see each
+`php.ini`'s header for the production notes (and sources).
 
 ## Layout
 
 ```
 examples/
-  laravel/docker-compose.yml      # SERVER_ROOT=/app/public
-  symfony/docker-compose.yml      # SERVER_ROOT=/app/public
-  nette/docker-compose.yml        # SERVER_ROOT=/app/www
-  wordpress/docker-compose.yml    # SERVER_ROOT=/app  (+ a MariaDB service)
+  laravel/     docker-compose.yml + php.ini   # SERVER_ROOT=/app/public
+  symfony/     docker-compose.yml + php.ini   # SERVER_ROOT=/app/public
+  nette/       docker-compose.yml + php.ini   # SERVER_ROOT=/app/www
+  wordpress/   docker-compose.yml + php.ini   # SERVER_ROOT=/app  (+ a MariaDB service)
 ```
 
 ## Use

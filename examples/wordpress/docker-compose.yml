@@ -24,6 +24,7 @@ x-app: &app
     SERVER_ROOT: /app
   volumes:
     - ./app:/app
+    - ./php.ini:/usr/local/etc/php/conf.d/zzz-app.ini:ro
   depends_on:
     - db
   restart: unless-stopped

@@ -14,6 +14,7 @@ x-app: &app
     SERVER_ROOT: /app/public
   volumes:
     - ./app:/app
+    - ./php.ini:/usr/local/etc/php/conf.d/zzz-app.ini:ro
   restart: unless-stopped
 
 services:
