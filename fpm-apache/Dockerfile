@@ -13,15 +13,27 @@ COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-packages apache2 \
  && helper install-s6-overlay
 
-# Optionally build extra PHP extensions at build time, e.g.
-#   --build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"
-# PHP_EXTENSIONS are docker-php-ext-install names; extensions needing system libraries
-# also need those libs via PHP_EXTENSION_PACKAGES (the base image ships the toolchain).
+# Optionally build extra PHP extensions at build time. All optional, space-separated:
+#   PHP_EXTENSIONS          docker-php-ext-install names (bundled), e.g. "mysqli gd"
+#   PHP_PECL_EXTENSIONS     PECL packages, e.g. "redis apcu"
+#   PHP_PIE_EXTENSIONS      PIE packages (composer vendor/name)
+#   PHP_EXTENSION_PACKAGES  extra system libs some extensions need (e.g. "libpng-dev"),
+#                           kept in the image (they may be needed at runtime)
+# e.g. --build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"
+# pecl/pie compile from source, so the toolchain ($PHPIZE_DEPS, +unzip for pie) is added
+# as a removable group and dropped afterwards to keep the image lean.
 ARG PHP_EXTENSION_PACKAGES=""
 ARG PHP_EXTENSIONS=""
-RUN if [ -n "$PHP_EXTENSIONS" ]; then \
-      if [ -n "$PHP_EXTENSION_PACKAGES" ]; then helper install-packages $PHP_EXTENSION_PACKAGES; fi; \
-      helper install-docker-ext $PHP_EXTENSIONS; \
+ARG PHP_PECL_EXTENSIONS=""
+ARG PHP_PIE_EXTENSIONS=""
+RUN set -eu; \
+    if [ -n "$PHP_EXTENSION_PACKAGES" ]; then helper install-packages $PHP_EXTENSION_PACKAGES; fi; \
+    if [ -n "$PHP_EXTENSIONS" ]; then helper install-docker-ext $PHP_EXTENSIONS; fi; \
+    if [ -n "$PHP_PECL_EXTENSIONS" ] || [ -n "$PHP_PIE_EXTENSIONS" ]; then \
+      if [ -n "$PHP_PIE_EXTENSIONS" ]; then helper install-build-deps unzip; else helper install-build-deps; fi; \
+      if [ -n "$PHP_PECL_EXTENSIONS" ]; then helper install-pecl-ext $PHP_PECL_EXTENSIONS; fi; \
+      if [ -n "$PHP_PIE_EXTENSIONS" ]; then helper install-pie && helper install-pie-ext $PHP_PIE_EXTENSIONS; fi; \
+      helper remove-build-deps; \
     fi
 
 # Document root, overridable at runtime; httpd expands ${SERVER_ROOT} in vhost.conf.

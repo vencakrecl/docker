@@ -46,6 +46,9 @@ See `README.md` for the authoritative scheme. Summary:
   /etc/passwd + /etc/group (distro-agnostic; Alpine has no usermod). Run it
   *before* the image's `chown -R <user>` so the chown uses the new id.
 - `install-packages <pkgs...>` -> apt-get or apk, with cache cleanup
+- `install-build-deps [pkgs...]` / `remove-build-deps` -> add `$PHPIZE_DEPS` (+extras) as
+  a removable group for building pecl/pie exts, then drop it (Alpine `apk --virtual`;
+  no-op remove on Debian, whose base already ships the toolchain)
 - `install-s6-overlay` -> s6-overlay init/supervisor (noarch + per-arch tarballs)
 - `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
 - `install-pie` -> PIE phar to `/usr/local/bin/pie` (needs PHP at runtime)
@@ -254,16 +257,27 @@ the daemon.
   on Linux; Docker Desktop auto-maps). Makefile passes them only when set (so no
   build warning on dind). Default unset = hardened uid 82/33. Runtime alternative:
   `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
-- **Extra PHP extensions (`PHP_EXTENSIONS`, build-time):** all three web images take
-  `PHP_EXTENSIONS` (space-separated `docker-php-ext-install` names) and, for extensions
-  that need system libraries, `PHP_EXTENSION_PACKAGES` (installed via
-  `helper install-packages` first). Both default empty (no-op). Example:
+- **Extra PHP extensions (build-time args):** all three web images take four optional,
+  space-separated args: `PHP_EXTENSIONS` (`docker-php-ext-install`, bundled),
+  `PHP_PECL_EXTENSIONS` (PECL), `PHP_PIE_EXTENSIONS` (PIE, composer `vendor/name`), and
+  `PHP_EXTENSION_PACKAGES` (extra system libs, kept in the image). All default empty
+  (no-op, so the base images stay lean). Example:
   `--build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"`
-  (used by `examples/wordpress`). The base image ships the compile toolchain, so simple
-  extensions (mysqli, pdo_mysql, bcmath, ...) need no packages; only lib-backed ones
-  (gd, intl, zip) do. Extensions needing `docker-php-ext-configure` flags (e.g. gd with
-  jpeg/freetype) still need a derived Dockerfile. pecl/pie extensions aren't covered -
-  use the helper directly. Build-time only; keep the base images lean by default.
+  (used by `examples/wordpress`).
+  - Bundled extensions (`docker-php-ext-install`) compile without the toolchain on both
+    distros (they build in the PHP source tree, no `phpize`/autoconf).
+  - PECL/PIE compile external sources and need `$PHPIZE_DEPS` - present on Debian, absent
+    on Alpine. The args auto-add it (plus `unzip`, which PIE needs to fetch packages) via
+    `helper install-build-deps` as a removable group, then `helper remove-build-deps`
+    drops it (Alpine `apk add --virtual`/`apk del`; on Debian the base toolchain stays).
+    Verified: pecl `redis` on Alpine loads and autoconf is gone afterward; pie
+    `xdebug/xdebug` on Debian loads.
+  - Extensions needing extra *system* build headers/libs take them via
+    `PHP_EXTENSION_PACKAGES` (e.g. `gd`->`libpng-dev`, `xdebug` on Alpine->`linux-headers`).
+    Note these are KEPT (not auto-removed), since they may be runtime libs.
+  - Not expressible through the args (use the helper / a derived Dockerfile):
+    `docker-php-ext-configure` flags (e.g. gd with jpeg/freetype) and per-extension PIE
+    config flags (e.g. `asgrim/example-pie-extension` needs `--enable-...`).
 - **Document root (`SERVER_ROOT`, runtime-overridable):** all three web images
   expose `SERVER_ROOT` (default fpm-nginx/fpm-apache `/var/www/html`, frankenphp
   `/app/public`) so the docroot can be changed with `docker run -e SERVER_ROOT=...`
