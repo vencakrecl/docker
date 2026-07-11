@@ -179,11 +179,13 @@ UTC timezone): `PHP_MEMORY_LIMIT` (128M), `PHP_UPLOAD_MAX_FILESIZE` (2M),
 `PHP_POST_MAX_SIZE` (8M), `PHP_MAX_INPUT_VARS` (1000), `PHP_DATE_TIMEZONE` (UTC),
 `PHP_OPCACHE_MEMORY_CONSUMPTION` (128), `PHP_OPCACHE_MAX_ACCELERATED_FILES` (10000),
 `PHP_OPCACHE_INTERNED_STRINGS_BUFFER` (8), `PHP_OPCACHE_VALIDATE_TIMESTAMPS` (1),
-`PHP_REALPATH_CACHE_SIZE` (4096K), `PHP_REALPATH_CACHE_TTL` (120). Each knob has an
-`env-*` goss test that sets it inline and asserts `ini_get`. The `examples/<fw>`
-composes tune PHP per framework purely through these env vars (no mounted `php.ini`).
-Note `max_execution_time` is deliberately *not* a common knob: the CLI SAPI forces it
-to 0, so it can't be verified with the `php -r ini_get` test pattern.
+`PHP_REALPATH_CACHE_SIZE` (4096K), `PHP_REALPATH_CACHE_TTL` (120),
+`PHP_MAX_EXECUTION_TIME` (30). All but the last have an `env-*` goss test that sets them
+inline and asserts `ini_get`. The `examples/<fw>` composes tune PHP per framework purely
+through these env vars (no mounted `php.ini`). `PHP_MAX_EXECUTION_TIME` has *no* goss
+test: the CLI SAPI forces `max_execution_time` to 0 so `php -r ini_get` can't read it
+back; it does apply in the fpm/frankenphp web SAPI (verified by an HTTP request), and
+its `${ENV}` expansion is identical to the tested knobs.
 
 The **fpm** images (fpm-nginx, fpm-apache) additionally copy `common/php-fpm.conf`
 to `/usr/local/etc/php-fpm.d/zzz-common.conf` (the `zzz-` prefix makes it load
