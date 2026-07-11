@@ -111,8 +111,8 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   config is loaded (e.g. 40 vs the base image's hardcoded 5) and valid (exit 0).
   php.ini values are read off `php -r`'s stdout; php-fpm values off `php-fpm -tt`'s
   stderr. Keep override values within php-fpm's dynamic constraints
-  (min_spare <= start <= max_spare). dind: dockerd running + `docker
-  version` reaches the daemon (root by design, no non-root check).
+  (min_spare <= start <= max_spare). dind: runs-as-non-root (rootless, uid 1000),
+  dockerd running, and `docker version` reaches the rootless daemon socket.
 - Gotchas: goss renders the whole goss.yaml (comments too) as a Go template, so
   never put `{{ }}` in it - e.g. don't use `docker ... --format` with a template;
   use `docker version` + exit-status instead. Non-root check: `id -u` with
@@ -120,6 +120,40 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   `port` check for the web images - Apache binds IPv6 on Alpine but IPv4 on Debian,
   and http also tests serving end-to-end. For fpm-apache, don't check the
   web-server process by name (httpd on Alpine, apache2 on Debian).
+
+## CI
+
+`.github/workflows/ci.yml` (push + PR), no lint:
+- `matrix` job: single source of truth for the image x PHP-version `targets` list,
+  emitted as one-line JSON to `$GITHUB_OUTPUT` (a multi-line value would need the
+  `<<DELIM` format). `build-php-image` and `release-php-image` both consume it via
+  `${{ fromJSON(needs.matrix.outputs.targets) }}` - edit versions in one place.
+- `build-php-image` job: matrix of `arch` (amd64 / arm64) x `os` (alpine / debian) x
+  `target` - one job per variant (targets x 2 arch x 2 os). Each runs on the matching runner
+  (`ubuntu-latest` / `ubuntu-24.04-arm`), installs goss/dgoss for that arch
+  (`dpkg --print-architecture`), then separate steps: **Build**
+  (`make <image>-<os> PHP_VERSION=<php>`), **Test** (`dgoss run <image>:<php>-<os>`),
+  and on main **Push** (see below). `IMAGE`/`PHP`/`OS`/`REF` are job-level `env`
+  (matrix context is available there). Native arch builds (no QEMU) so goss can run
+  the container. `fail-fast: false`; goss pinned via `GOSS_VERSION`.
+- `build-dind-image` job: per-arch, `make test-dind` (single rootless variant, no
+  PHP version), then the same Push step.
+- Push is the **third step** of build-php-image / build-dind-image (on main only,
+  gated by `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`; the
+  jobs carry `packages: write` + a GHCR login step). It `docker tag`+`push`es the
+  *already-tested* image to a per-arch tag `ghcr.io/<owner>/<image>:<tag>-<arch>` -
+  no rebuild.
+- `release-php-image` / `release-dind-image` jobs (`needs: build-php-image` /
+  `build-dind-image`, `if: main`): assemble the per-arch tags into the final
+  multi-arch tag with `docker buildx imagetools create -t <tag> <tag>-amd64
+  <tag>-arm64`. Downside: the `-amd64`/`-arm64` tags linger in the registry (the
+  merged `<tag>` is the clean multi-arch one).
+- The s6 `run` scripts carry `# shellcheck shell=sh` (for the `with-contenv`
+  shebang) - kept even though lint was dropped, in case it's re-added.
+- Run the workflow locally with `act` (nektos/act); `.actrc` maps the runner
+  labels (incl. the non-standard `ubuntu-24.04-arm`) to a host-arch runner image.
+  act binds the host docker socket, so `docker buildx`/`dgoss` hit the host daemon;
+  the arch matrix is not truly cross-arch locally (both run on the host arch).
 
 ## PHP configuration (common/php.ini, common/php-fpm.conf)
 

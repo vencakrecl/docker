@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOSS_VERSION: v0.4.9
+  DOCKER_VERSION: "29" # dind tag (matches the Makefile default)
+
+jobs:
+  # Single source of truth for the image x PHP-version list, shared by
+  # build-php-image and release-php-image via fromJSON. Edit versions here only.
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.set.outputs.targets }}
+    steps:
+      # Single-line JSON (a multi-line $GITHUB_OUTPUT value would need <<DELIM).
+      - id: set
+        run: >-
+          echo 'targets=[
+          {"image":"fpm-nginx","php":"8.5"},
+          {"image":"fpm-apache","php":"8.5"},
+          {"image":"frankenphp","php":"8.5"}
+          ]' >> "$GITHUB_OUTPUT"
+
+  # One parallel job per (target x arch x os). Build, test, and (on main) push the
+  # tested image under a per-arch tag; release-php-image assembles the multi-arch tag.
+  build-php-image:
+    needs: matrix
+    name: ${{ matrix.target.image }} ${{ matrix.target.php }}-${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ matrix.target.image }}
+      PHP: ${{ matrix.target.php }}
+      OS: ${{ matrix.os }}
+      REF: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        os: [alpine, debian]
+        target: ${{ fromJSON(needs.matrix.outputs.targets) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Install goss + dgoss
+        run: |
+          arch=$(dpkg --print-architecture)
+          sudo curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o /usr/local/bin/goss
+          sudo curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o /usr/local/bin/dgoss
+          sudo chmod +x /usr/local/bin/goss /usr/local/bin/dgoss
+      - name: Build
+        run: make "$IMAGE-$OS" PHP_VERSION="$PHP"
+      - name: Test (goss)
+        run: cd "$IMAGE" && GOSS_SLEEP=8 dgoss run "$IMAGE:$PHP-$OS"
+      - name: Log in to GHCR
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push (this arch)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          docker tag "$IMAGE:$PHP-$OS" "$REF"
+          docker push "$REF"
+
+  build-dind-image:
+    name: dind (${{ matrix.arch }})
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REF: ghcr.io/${{ github.repository_owner }}/dind
+      ARCH: ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Install goss + dgoss
+        run: |
+          arch=$(dpkg --print-architecture)
+          sudo curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o /usr/local/bin/goss
+          sudo curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o /usr/local/bin/dgoss
+          sudo chmod +x /usr/local/bin/goss /usr/local/bin/dgoss
+      - name: Build + test
+        run: make test-dind
+      - name: Log in to GHCR
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push (this arch)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          ref="$REF:${DOCKER_VERSION}-rootless-${ARCH}"
+          docker tag "dind:${DOCKER_VERSION}-rootless" "$ref"
+          docker push "$ref"
+
+  # Assemble the per-arch tags pushed by build-php-image into one multi-arch tag.
+  release-php-image:
+    needs: [matrix, build-php-image]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    name: release ${{ matrix.target.image }} ${{ matrix.target.php }}-${{ matrix.os }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [alpine, debian]
+        target: ${{ fromJSON(needs.matrix.outputs.targets) }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create multi-arch manifest
+        env:
+          BASE: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}
+        run: docker buildx imagetools create -t "$BASE" "$BASE-amd64" "$BASE-arm64"
+
+  release-dind-image:
+    needs: build-dind-image
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    name: release dind
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create multi-arch manifest
+        env:
+          REPO: ghcr.io/${{ github.repository_owner }}/dind
+        run: |
+          base="$REPO:${DOCKER_VERSION}-rootless"
+          docker buildx imagetools create -t "$base" "$base-amd64" "$base-arm64"

@@ -16,6 +16,13 @@ DOCKER_VERSION ?= 29
 REGISTRY       ?=
 PLATFORM       ?=
 
+# Output/cache control. Default `--load` builds a single (host) arch into the local
+# engine for testing. To build+push a multi-arch manifest (CI push job):
+#   make fpm-nginx-alpine REGISTRY=ghcr.io/owner/ OUTPUT=--push PLATFORM=linux/amd64,linux/arm64
+# CACHE lets CI pass buildx cache flags (e.g. --cache-from/--cache-to type=gha).
+OUTPUT ?= --load
+CACHE  ?=
+
 # For local development: set USER_ID/GROUP_ID to match your host user so
 # bind-mounted files get the right owner (Linux hosts). Only passed when set.
 #   make fpm-nginx-alpine USER_ID=$(id -u) GROUP_ID=$(id -g)
@@ -23,7 +30,7 @@ USER_ID  ?=
 GROUP_ID ?=
 
 # $(call build,<image>,<base-image>,<tag>)
-BUILDX = docker buildx build --load $(if $(PLATFORM),--platform $(PLATFORM))
+BUILDX = docker buildx build $(OUTPUT) $(CACHE) $(if $(PLATFORM),--platform $(PLATFORM))
 define build
 	$(BUILDX) \
 	  --build-arg BASE_IMAGE=$(2) \

@@ -1,0 +1,13 @@
+# Config for running the workflows locally with act (https://github.com/nektos/act).
+#
+# act doesn't know the `ubuntu-24.04-arm` runner label used by the matrix, and it
+# can't truly cross-compile arches on one host anyway - map both runner labels to
+# the same image so every matrix job runs on your host arch.
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-24.04-arm=catthehacker/ubuntu:act-latest
+
+# To also run the goss tests under act, pass on the command line:
+#   act pull_request -j build-php-image --container-options '-v /tmp:/tmp'
+# - `-v /tmp:/tmp` makes dgoss's bind-mounts resolve under act's nested docker
+#   (else `sh: /goss/goss: not found`, act issue #107).
+# - the `pull_request` event skips the push steps (they need real GHCR auth).

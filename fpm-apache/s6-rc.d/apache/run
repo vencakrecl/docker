@@ -1,4 +1,5 @@
 #!/command/with-contenv sh
+# shellcheck shell=sh
 exec 2>&1
 # Run Apache in the foreground regardless of distro: Debian ships apache2ctl
 # (which sources /etc/apache2/envvars), Alpine ships httpd.

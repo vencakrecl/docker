@@ -1,5 +1,7 @@
 # Docker images
 
+[![CI](https://github.com/vencakrecl/docker/actions/workflows/ci.yml/badge.svg)](https://github.com/vencakrecl/docker/actions/workflows/ci.yml)
+
 Collection of Docker images. Every image is multi-arch (`linux/amd64` + `linux/arm64`) and
 ships in **Debian** and **Alpine** variants.
 
@@ -20,8 +22,9 @@ uid 1000) - though the container itself still needs `--privileged`.
 
 ## Naming
 
-Registry / namespace is not decided yet, so images are referred to by name only
-(e.g. `fpm-nginx`); a prefix like `ghcr.io/<owner>/` is added later.
+CI publishes to **GHCR**: `ghcr.io/<owner>/<image>:<tag>` (e.g.
+`ghcr.io/vencakrecl/fpm-nginx:8.4-alpine`). The registry prefix is the Makefile's
+`REGISTRY` variable (empty for local builds).
 
 ### Tags
 
@@ -171,6 +174,29 @@ make test-fpm-nginx # one image
 
 Requires `goss` + `dgoss` on `PATH`. Each image's checks live in its
 `<image>/goss.yaml`.
+
+CI (`.github/workflows/ci.yml`) runs on push/PR as a **matrix**: one parallel job
+per image × PHP version × arch (`amd64` + `arm64`) × OS (`alpine` + `debian`),
+each building and goss-testing that one variant; `dind` is a separate per-arch job.
+The PHP version set is per image - a `matrix` job emits it as JSON so build and
+push share one list.
+
+On push to **main**, each job's third step pushes the **tested** image to **GHCR**
+under a per-arch tag; the `release-php-image`/`release-dind-image` jobs then assemble the
+**multi-arch** (amd64+arm64) manifest (`ghcr.io/<owner>/<image>:<tag>`) with
+`docker buildx imagetools create`. No QEMU - the published images are exactly the
+ones built and goss-tested natively on each arch.
+
+Run the workflow locally with [`act`](https://github.com/nektos/act) (`.actrc`
+maps the runner labels):
+
+```sh
+act pull_request -j build-php-image --container-options '-v /tmp:/tmp'
+```
+
+`-v /tmp:/tmp` lets dgoss's bind-mounts resolve under act's nested docker, and the
+`pull_request` event skips the push steps (they need real GHCR auth). Both arch
+matrix entries run on your host arch - act can't truly cross-build on one machine.
 
 ## Status
 

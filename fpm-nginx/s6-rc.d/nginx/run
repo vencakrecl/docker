@@ -1,3 +1,4 @@
 #!/command/with-contenv sh
+# shellcheck shell=sh
 exec 2>&1
 exec nginx -g "daemon off;"
