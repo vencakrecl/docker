@@ -1,12 +1,12 @@
 #!/command/with-contenv sh
 # shellcheck shell=sh
 exec 2>&1
-# ProxyTimeout in vhost.conf reads ${APACHE_PROXY_TIMEOUT}; default it to PHP's
+# ProxyTimeout in vhost.conf reads ${SERVER_TIMEOUT}; default it to PHP's
 # max_execution_time (so Apache waits as long as PHP may run) unless the caller set
-# APACHE_PROXY_TIMEOUT. Must be a real env var - httpd errors on an undefined ${VAR}.
-: "${APACHE_PROXY_TIMEOUT:=${PHP_MAX_EXECUTION_TIME:-30}}"
-[ "$APACHE_PROXY_TIMEOUT" = "0" ] && APACHE_PROXY_TIMEOUT=3600   # 0 (unlimited) -> 1h
-export APACHE_PROXY_TIMEOUT
+# SERVER_TIMEOUT. Must be a real env var - httpd errors on an undefined ${VAR}.
+: "${SERVER_TIMEOUT:=${PHP_MAX_EXECUTION_TIME:-30}}"
+[ "$SERVER_TIMEOUT" = "0" ] && SERVER_TIMEOUT=3600   # 0 (unlimited) -> 1h
+export SERVER_TIMEOUT
 # Run Apache in the foreground regardless of distro: Debian ships apache2ctl
 # (which sources /etc/apache2/envvars), Alpine ships httpd.
 if command -v apache2ctl >/dev/null 2>&1; then

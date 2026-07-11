@@ -22,7 +22,7 @@ command:
     exec: healthcheck
     exit-status: 0
   # fastcgi_read_timeout is rendered from PHP_MAX_EXECUTION_TIME (default 30) so nginx
-  # doesn't 504 before PHP's limit; overridable via NGINX_FASTCGI_READ_TIMEOUT.
+  # doesn't 504 before PHP's limit; overridable via SERVER_TIMEOUT.
   nginx-fastcgi-read-timeout:
     exec: grep -oE 'fastcgi_read_timeout [0-9]+s' /run/nginx.conf
     exit-status: 0
