@@ -173,7 +173,14 @@ runtime with no rebuild - e.g. `memory_limit = ${PHP_MEMORY_LIMIT:-128M}`, overr
 by `docker run -e PHP_MEMORY_LIMIT=512M`. The default lives in the ini (not in a
 Dockerfile `ENV`); do not use a bare `${VAR}` (empty value makes PHP warn and
 fall back to 128M). To add a knob: add `key = ${ENV_VAR:-default}` to
-`common/php.ini` - no Dockerfile change. Not applied to `dind` (not a PHP image).
+`common/php.ini` *and* an `env-*` goss test in each web image. Not applied to `dind`
+(not a PHP image). Current knobs (all defaulting to PHP's own defaults, bar an explicit
+UTC timezone): `PHP_MEMORY_LIMIT` (128M), `PHP_UPLOAD_MAX_FILESIZE` (2M),
+`PHP_POST_MAX_SIZE` (8M), `PHP_MAX_INPUT_VARS` (1000), `PHP_DATE_TIMEZONE` (UTC).
+Per-framework tuning lives in `examples/<fw>/php.ini`. Each knob has an `env-*` goss
+test that sets it inline and asserts `ini_get`. Note `max_execution_time` is
+deliberately *not* a common knob: the CLI SAPI forces it to 0, so it can't be verified
+with the `php -r ini_get` test pattern (WordPress sets it in its per-framework php.ini).
 
 The **fpm** images (fpm-nginx, fpm-apache) additionally copy `common/php-fpm.conf`
 to `/usr/local/etc/php-fpm.d/zzz-common.conf` (the `zzz-` prefix makes it load

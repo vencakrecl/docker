@@ -15,13 +15,29 @@ command:
   healthcheck:
     exec: healthcheck
     exit-status: 0
-  # PHP_MEMORY_LIMIT env override (set inline; php.ini re-parsed each run). Proves
-  # the ${PHP_MEMORY_LIMIT} expansion in our php.ini works. frankenphp embeds PHP
+  # One test per common/php.ini env knob (set inline; php re-parses config each run).
+  # Proves the ${VAR:-default} expansion in our php.ini works. frankenphp embeds PHP
   # (no php-fpm), so there are no PHP_FPM_* knobs.
   env-php-memory-limit:
     exec: env PHP_MEMORY_LIMIT=512M php -r 'echo ini_get("memory_limit");'
     exit-status: 0
     stdout: ["512M"]
+  env-php-upload-max-filesize:
+    exec: env PHP_UPLOAD_MAX_FILESIZE=64M php -r 'echo ini_get("upload_max_filesize");'
+    exit-status: 0
+    stdout: ["64M"]
+  env-php-post-max-size:
+    exec: env PHP_POST_MAX_SIZE=128M php -r 'echo ini_get("post_max_size");'
+    exit-status: 0
+    stdout: ["128M"]
+  env-php-max-input-vars:
+    exec: env PHP_MAX_INPUT_VARS=5000 php -r 'echo ini_get("max_input_vars");'
+    exit-status: 0
+    stdout: ["5000"]
+  env-php-date-timezone:
+    exec: env PHP_DATE_TIMEZONE=Europe/Prague php -r 'echo ini_get("date.timezone");'
+    exit-status: 0
+    stdout: ["Europe/Prague"]
 http:
   http://localhost:8080/:
     status: 200
