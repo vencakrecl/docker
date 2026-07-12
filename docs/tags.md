@@ -6,6 +6,10 @@ CI publishes to **GHCR**: `ghcr.io/<owner>/<image>:<tag>` (e.g.
 `ghcr.io/vencakrecl/fpm-nginx:8.4-alpine`). The registry prefix is the Makefile's
 `REGISTRY` variable (empty for local builds).
 
+When the repo variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN` are set, CI
+also mirrors the same tags to **Docker Hub**: `docker.io/<DOCKERHUB_USERNAME>/<image>:<tag>`
+(e.g. `docker.io/vencakrecl/fpm-nginx:8.4-alpine`). Unset = GHCR only.
+
 ## Tags
 
 Tag format is `[<version>-]<os>`, where `<os>` is `debian` or `alpine`.

@@ -23,8 +23,9 @@ uid 1000) - though the container itself still needs `--privileged`.
 ## Quick start
 
 ```sh
-# Pull a published image from GHCR
+# Pull a published image (GHCR, or Docker Hub when configured)
 docker pull ghcr.io/vencakrecl/fpm-nginx:8.4-alpine
+docker pull docker.io/vencakrecl/fpm-nginx:8.4-alpine
 
 # ...or build one locally
 make fpm-nginx-alpine

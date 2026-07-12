@@ -33,6 +33,10 @@ under a per-arch tag; the `release-php-image`/`release-dind-image` jobs then ass
 `docker buildx imagetools create`. No QEMU - the published images are exactly the
 ones built and goss-tested natively on each arch.
 
+If the repo variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN` are configured,
+the same steps also mirror to **Docker Hub** (`docker.io/<DOCKERHUB_USERNAME>/<image>:<tag>`);
+the Docker Hub steps are skipped when the variable is unset, so CI stays green without them.
+
 Run the workflow locally with [`act`](https://github.com/nektos/act) (`.actrc`
 maps the runner labels):
 

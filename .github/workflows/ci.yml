@@ -51,7 +51,9 @@ jobs:
       # make target + local tag: fpm-nginx-alpine / 8.5-alpine (prod), -dev forms for dev.
       MAKE_TARGET: ${{ matrix.target.image }}${{ matrix.variant == 'dev' && '-dev' || '' }}-${{ matrix.os }}
       TAG: ${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}
-      REF: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}-${{ matrix.arch }}
+      GHCR_REF: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}-${{ matrix.arch }}
+      # Docker Hub mirror (same per-arch tag); pushed only when DOCKERHUB_USERNAME is set.
+      DOCKERHUB_REF: docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -107,8 +109,19 @@ jobs:
       - name: Push (this arch)
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
-          docker tag "$IMAGE:$TAG" "$REF"
-          docker push "$REF"
+          docker tag "$IMAGE:$TAG" "$GHCR_REF"
+          docker push "$GHCR_REF"
+      - name: Log in to Docker Hub
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Push to Docker Hub (this arch)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DOCKERHUB_USERNAME != '' }}
+        run: |
+          docker tag "$IMAGE:$TAG" "$DOCKERHUB_REF"
+          docker push "$DOCKERHUB_REF"
 
   build-dind-image:
     # suffix "" is plain rootless dind; -aws/-gcloud/-azure add a cloud CLI (see
@@ -119,7 +132,8 @@ jobs:
       contents: read
       packages: write
     env:
-      REF: ghcr.io/${{ github.repository_owner }}/dind
+      GHCR_REF: ghcr.io/${{ github.repository_owner }}/dind
+      DOCKERHUB_REF: docker.io/${{ vars.DOCKERHUB_USERNAME }}/dind
       ARCH: ${{ matrix.arch }}
       SUFFIX: ${{ matrix.suffix }}
     strategy:
@@ -157,7 +171,20 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
           tag="${DOCKER_VERSION}-rootless${SUFFIX}"
-          ref="$REF:${tag}-${ARCH}"
+          ref="$GHCR_REF:${tag}-${ARCH}"
+          docker tag "dind:${tag}" "$ref"
+          docker push "$ref"
+      - name: Log in to Docker Hub
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Push to Docker Hub (this arch)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DOCKERHUB_USERNAME != '' }}
+        run: |
+          tag="${DOCKER_VERSION}-rootless${SUFFIX}"
+          ref="$DOCKERHUB_REF:${tag}-${ARCH}"
           docker tag "dind:${tag}" "$ref"
           docker push "$ref"
 
@@ -187,6 +214,17 @@ jobs:
         env:
           BASE: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}
         run: docker buildx imagetools create -t "$BASE" "$BASE-amd64" "$BASE-arm64"
+      - name: Log in to Docker Hub
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Create multi-arch manifest (Docker Hub)
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        env:
+          BASE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}
+        run: docker buildx imagetools create -t "$BASE" "$BASE-amd64" "$BASE-arm64"
 
   release-dind-image:
     needs: build-dind-image
@@ -210,6 +248,20 @@ jobs:
       - name: Create multi-arch manifest
         env:
           REPO: ghcr.io/${{ github.repository_owner }}/dind
+          SUFFIX: ${{ matrix.suffix }}
+        run: |
+          base="$REPO:${DOCKER_VERSION}-rootless${SUFFIX}"
+          docker buildx imagetools create -t "$base" "$base-amd64" "$base-arm64"
+      - name: Log in to Docker Hub
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Create multi-arch manifest (Docker Hub)
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        env:
+          REPO: docker.io/${{ vars.DOCKERHUB_USERNAME }}/dind
           SUFFIX: ${{ matrix.suffix }}
         run: |
           base="$REPO:${DOCKER_VERSION}-rootless${SUFFIX}"

@@ -180,6 +180,13 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   jobs carry `packages: write` + a GHCR login step). It `docker tag`+`push`es the
   *already-tested* image to a per-arch tag `ghcr.io/<owner>/<image>:<tag>-<arch>` -
   no rebuild.
+- **Docker Hub mirror (optional):** every GHCR push/manifest step is shadowed by an
+  equivalent `docker.io/<DOCKERHUB_USERNAME>/<image>:<tag>` step, each guarded by
+  `vars.DOCKERHUB_USERNAME != ''` (build jobs also keep the main-only gate; the
+  release-job steps guard on the var only, since the job is already main-gated). So
+  Docker Hub is pushed **only when** the repo variable `DOCKERHUB_USERNAME` (namespace +
+  login user) is set and the `DOCKERHUB_TOKEN` secret exists; unset = the steps skip and
+  CI is unaffected. Same per-arch tag + `imagetools create` merge as GHCR.
 - `release-php-image` / `release-dind-image` jobs (`needs: build-php-image` /
   `build-dind-image`, `if: main`): assemble the per-arch tags into the final
   multi-arch tag with `docker buildx imagetools create -t <tag> <tag>-amd64
