@@ -15,8 +15,10 @@ permissions:
 
 env:
   GOSS_VERSION: v0.4.9
-  # goss is verified against its release .sha256 sidecar; dgoss is a raw script with no
-  # sidecar, so its digest is pinned here (bump alongside GOSS_VERSION).
+  # goss + dgoss are verified against digests pinned here (never a checksum fetched from the
+  # same origin as the artifact - trust-on-first-use). Bump all three alongside GOSS_VERSION.
+  GOSS_SHA256_AMD64: 87dd36cfa1b8b50554e6e2ca29168272e26755b19ba5438341f7c66b36decc19
+  GOSS_SHA256_ARM64: 14fd24ac08236559f4809e6a627792d1b947ed98654bba1662ef1d6122d77e18
   DGOSS_SHA256: 7ee35d6ccbe1440eb2a08984a43e8b3742f2e849abdc0d7384ac08de55682d7c
   DOCKER_VERSION: "29" # dind tag (matches the Makefile default)
 
@@ -71,10 +73,14 @@ jobs:
         run: |
           arch=$(dpkg --print-architecture)
           tmp=$(mktemp -d)
-          # goss: verify against the release's published .sha256 sidecar.
+          # goss: verify against the pinned per-arch digest (not a same-origin sidecar).
+          case "$arch" in
+            amd64) goss_sha="$GOSS_SHA256_AMD64" ;;
+            arm64) goss_sha="$GOSS_SHA256_ARM64" ;;
+            *) echo "unsupported arch: $arch" >&2; exit 1 ;;
+          esac
           curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o "$tmp/goss"
-          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}.sha256" -o "$tmp/goss.sha256"
-          sh common/helper verify-sha256 "$tmp/goss" "$(cut -d' ' -f1 "$tmp/goss.sha256")"
+          sh common/helper verify-sha256 "$tmp/goss" "$goss_sha"
           # dgoss: a raw script with no sidecar, so verify against the pinned DGOSS_SHA256.
           curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o "$tmp/dgoss"
           sh common/helper verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
@@ -158,10 +164,14 @@ jobs:
         run: |
           arch=$(dpkg --print-architecture)
           tmp=$(mktemp -d)
-          # goss: verify against the release's published .sha256 sidecar.
+          # goss: verify against the pinned per-arch digest (not a same-origin sidecar).
+          case "$arch" in
+            amd64) goss_sha="$GOSS_SHA256_AMD64" ;;
+            arm64) goss_sha="$GOSS_SHA256_ARM64" ;;
+            *) echo "unsupported arch: $arch" >&2; exit 1 ;;
+          esac
           curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o "$tmp/goss"
-          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}.sha256" -o "$tmp/goss.sha256"
-          sh common/helper verify-sha256 "$tmp/goss" "$(cut -d' ' -f1 "$tmp/goss.sha256")"
+          sh common/helper verify-sha256 "$tmp/goss" "$goss_sha"
           # dgoss: a raw script with no sidecar, so verify against the pinned DGOSS_SHA256.
           curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o "$tmp/dgoss"
           sh common/helper verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"

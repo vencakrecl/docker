@@ -103,16 +103,18 @@ Tool versions are pinned at the top of `common/helper` (`S6_OVERLAY_VERSION`,
 `AZURE_CLI_VERSION`; AWS CLI is unpinned - it tracks the Alpine repo) and overridable via env.
 Keep them pinned - do not switch to "latest" URLs (reproducibility).
 
-Downloaded artifacts are **sha256-verified** before use (via the `_verify_sha256` helper).
-s6-overlay and composer verify against their published `.sha256`/`.sha256sum` sidecars, so
-they need no pinned digest. pie, castor and gcloud have no upstream sidecar, so their digests
-are pinned next to the versions (`PIE_SHA256`, `CASTOR_SHA256_<ARCH>`, `GCLOUD_SHA256_<ARCH>`).
+Downloaded artifacts are **sha256-verified** before use (via the `_verify_sha256` helper),
+against digests **pinned in `common/helper`** - never a checksum fetched from the same origin
+as the artifact (a compromised/MITM'd origin could serve a matching malicious artifact+sidecar
+pair; trust-on-first-use). s6-overlay (`S6_OVERLAY_SHA256_{NOARCH,AMD64,ARM64}`), composer
+(`COMPOSER_SHA256`), pie (`PIE_SHA256`), castor (`CASTOR_SHA256_<ARCH>`) and gcloud
+(`GCLOUD_SHA256_<ARCH>`) all pin their digest next to the version.
 Like the `*_VERSION` pins these are helper env vars, not wired as Dockerfile `ARG`s, so a plain
 `docker build` uses the defaults; if you do override a version (set the env when invoking helper,
 or add an `ARG`), set the matching `*_SHA256` too or verification fails - bump both together. Azure CLI installs via pip and is version-pinned only (hash-pinning
 every transitive dep is impractical). AWS CLI is an apk package (verified by apk). The verifier is
 exposed as `helper verify-sha256 <file> <sha256>`; CI reuses it to check its goss binary (against
-the release `.sha256` sidecar) and the sidecar-less `dgoss` script (pinned via `DGOSS_SHA256`).
+the pinned per-arch `GOSS_SHA256_{AMD64,ARM64}`) and the `dgoss` script (pinned via `DGOSS_SHA256`).
 - Where the distro layout genuinely diverges (e.g. the Apache config tree, or
   per-distro packages/headers), the Dockerfile branches at build time on `helper
   detect-os` (`debian`|`alpine`) rather than templating - e.g. fpm-apache's `case`
