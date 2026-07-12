@@ -3,7 +3,7 @@
 # Secure by default: runs unprivileged as www-data on a high port (8080).
 # BASE_IMAGE is a php:*-fpm (Debian) or php:*-fpm-alpine image, set by the Makefile.
 ARG BASE_IMAGE=php:8.5-fpm
-FROM ${BASE_IMAGE}
+FROM ${BASE_IMAGE} AS base
 
 COPY common/helper /usr/local/bin/helper
 # Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
@@ -79,3 +79,26 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["hea
 # and nginx (finish in-flight requests) rather than hard-killing them.
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/init"]
+
+# --- dev variant (build with --target dev; tag <php>-<os>-dev) ------------------------
+# Layers the dev toolbox (composer, castor, xdebug, pcov, spx) onto the lean image.
+# xdebug is installed but off by default (XDEBUG_MODE) - see common/dev.ini.
+FROM base AS dev
+USER root
+# Dev tooling: composer + castor (binaries), then the dev extensions (xdebug/pcov/spx)
+# via the same install-extensions flow as the base image. The Makefile's dev targets
+# pass the extension list (PHP_PIE_EXTENSIONS) and the distro's build headers
+# (PHP_EXTENSION_PACKAGES); all four ARGs are overridable at build time.
+ARG PHP_EXTENSION_PACKAGES=""
+ARG PHP_EXTENSIONS=""
+ARG PHP_PECL_EXTENSIONS=""
+ARG PHP_PIE_EXTENSIONS=""
+COPY common/dev.ini /usr/local/etc/php/conf.d/zz-dev.ini
+RUN helper install-composer \
+ && helper install-castor \
+ && helper install-extensions
+USER ${SERVER_USER}
+
+# --- default (prod) stage: identical to `base`, kept last so a plain `docker build`
+# with no --target (e.g. the examples' compose) still yields the lean image. ----------
+FROM base AS prod

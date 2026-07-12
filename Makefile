@@ -29,11 +29,16 @@ CACHE  ?=
 USER_ID  ?=
 GROUP_ID ?=
 
-# $(call build,<image>,<base-image>,<tag>)
+# $(call build,<image>,<base-image>,<tag>[,<target>][,<extra-build-args>])
+# The optional 4th arg selects a Dockerfile stage (--target); omitted = the default
+# (last) stage, which is the lean prod image. The 5th arg is passed through verbatim
+# (the dev targets use it for --build-arg PHP_PIE_EXTENSIONS/PHP_EXTENSION_PACKAGES).
 BUILDX = docker buildx build $(OUTPUT) $(CACHE) $(if $(PLATFORM),--platform $(PLATFORM))
 define build
 	$(BUILDX) \
 	  --build-arg BASE_IMAGE=$(2) \
+	  $(if $(4),--target $(4)) \
+	  $(5) \
 	  $(if $(USER_ID),--build-arg USER_ID=$(USER_ID)) \
 	  $(if $(GROUP_ID),--build-arg GROUP_ID=$(GROUP_ID)) \
 	  -t $(REGISTRY)$(1):$(3) \
@@ -66,6 +71,44 @@ frankenphp-debian:
 	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-bookworm,$(PHP_VERSION)-debian)
 frankenphp-alpine:
 	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-alpine,$(PHP_VERSION)-alpine)
+
+# --- dev variants ------------------------------------------------------------
+# Each web image's Dockerfile has a `dev` stage (--target dev) that layers the dev
+# toolbox onto the lean image: composer, castor, and the xdebug/pcov/spx extensions
+# (installed through the standard install-extensions flow; xdebug off by default, see
+# common/dev.ini). Tag: <php>-<os>-dev.
+#
+# The extension list is shared; the build headers they compile against are distro-
+# specific and, like any PHP_EXTENSION_PACKAGES, kept in the image: Alpine needs
+# linux-headers (xdebug) + zlib-dev (spx); Debian needs zlib1g-dev (spx - its base
+# toolchain already covers xdebug). Override DEV_PIE_EXTENSIONS to change the set/pins.
+DEV_PIE_EXTENSIONS ?= xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22
+DEV_ARGS_alpine = --build-arg PHP_PIE_EXTENSIONS="$(DEV_PIE_EXTENSIONS)" --build-arg PHP_EXTENSION_PACKAGES="linux-headers zlib-dev"
+DEV_ARGS_debian = --build-arg PHP_PIE_EXTENSIONS="$(DEV_PIE_EXTENSIONS)" --build-arg PHP_EXTENSION_PACKAGES="zlib1g-dev"
+
+.PHONY: dev
+dev: fpm-nginx-dev fpm-apache-dev frankenphp-dev ## Build the dev variants of the web images (both OS)
+
+.PHONY: fpm-nginx-dev fpm-nginx-dev-debian fpm-nginx-dev-alpine
+fpm-nginx-dev: fpm-nginx-dev-debian fpm-nginx-dev-alpine
+fpm-nginx-dev-debian:
+	$(call build,fpm-nginx,php:$(PHP_VERSION)-fpm,$(PHP_VERSION)-debian-dev,dev,$(DEV_ARGS_debian))
+fpm-nginx-dev-alpine:
+	$(call build,fpm-nginx,php:$(PHP_VERSION)-fpm-alpine,$(PHP_VERSION)-alpine-dev,dev,$(DEV_ARGS_alpine))
+
+.PHONY: fpm-apache-dev fpm-apache-dev-debian fpm-apache-dev-alpine
+fpm-apache-dev: fpm-apache-dev-debian fpm-apache-dev-alpine
+fpm-apache-dev-debian:
+	$(call build,fpm-apache,php:$(PHP_VERSION)-fpm,$(PHP_VERSION)-debian-dev,dev,$(DEV_ARGS_debian))
+fpm-apache-dev-alpine:
+	$(call build,fpm-apache,php:$(PHP_VERSION)-fpm-alpine,$(PHP_VERSION)-alpine-dev,dev,$(DEV_ARGS_alpine))
+
+.PHONY: frankenphp-dev frankenphp-dev-debian frankenphp-dev-alpine
+frankenphp-dev: frankenphp-dev-debian frankenphp-dev-alpine
+frankenphp-dev-debian:
+	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-bookworm,$(PHP_VERSION)-debian-dev,dev,$(DEV_ARGS_debian))
+frankenphp-dev-alpine:
+	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-alpine,$(PHP_VERSION)-alpine-dev,dev,$(DEV_ARGS_alpine))
 
 # --- dind --------------------------------------------------------------------
 # Rootless dind is Alpine-only upstream, so dind is a single variant. The tag is
@@ -101,6 +144,27 @@ test-frankenphp: frankenphp-alpine
 test-dind: GOSS_SLEEP = 15   # rootless dind (rootlesskit + network) needs longer to be ready
 test-dind: dind
 	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless
+
+# Dev-variant smoke tests: assert the dev toolbox (composer, castor, xdebug, pcov, spx)
+# is present, using the shared common/goss.dev.yaml (GOSS_FILE) instead of an
+# <image>/goss.yaml. Runs the Alpine -dev tag.
+.PHONY: test-dev
+test-dev: test-dev-fpm-nginx test-dev-fpm-apache test-dev-frankenphp ## Runtime-test the dev variants (Alpine)
+
+.PHONY: test-dev-fpm-nginx
+test-dev-fpm-nginx: export GOSS_FILE = goss.dev.yaml
+test-dev-fpm-nginx: fpm-nginx-dev-alpine
+	cd common && $(DGOSS) $(REGISTRY)fpm-nginx:$(PHP_VERSION)-alpine-dev
+
+.PHONY: test-dev-fpm-apache
+test-dev-fpm-apache: export GOSS_FILE = goss.dev.yaml
+test-dev-fpm-apache: fpm-apache-dev-alpine
+	cd common && $(DGOSS) $(REGISTRY)fpm-apache:$(PHP_VERSION)-alpine-dev
+
+.PHONY: test-dev-frankenphp
+test-dev-frankenphp: export GOSS_FILE = goss.dev.yaml
+test-dev-frankenphp: frankenphp-dev-alpine
+	cd common && $(DGOSS) $(REGISTRY)frankenphp:$(PHP_VERSION)-alpine-dev
 
 .PHONY: help
 help: ## List the available targets

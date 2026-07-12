@@ -23,12 +23,18 @@ See `README.md` for the authoritative scheme. Summary:
   - PHP images (`fpm-nginx`, `fpm-apache`, `frankenphp`): `<php-version>-<os>`, e.g. `8.3-alpine`.
   - `dind`: `<docker-version>-rootless` (single variant; no OS suffix - it is
     meaningless for dind, and `-rootless` names the meaningful trait).
+  - Dev variant of the web images: `<php-version>-<os>-dev` (e.g. `8.4-alpine-dev`);
+    `-dev` names the trait (adds the dev toolbox), same as `-rootless` for dind. See
+    the Dev image variant section.
 - Registry/namespace is not decided yet; images are named without a prefix.
 
 ## Layout and build model
 
 - One directory per image, each with a **single** `Dockerfile`. There are no
-  per-OS Dockerfiles.
+  per-OS Dockerfiles. The three web images' Dockerfiles are **multi-stage**: a `base`
+  stage (all the prod build steps), a `dev` stage that layers the dev toolbox on top
+  (`--target dev`), and a trailing empty `prod` stage (`FROM base`) kept *last* so a
+  plain `docker build`/compose with no `--target` still yields the lean prod image.
 - Debian vs Alpine is a build-time input, not a separate file:
   - The Makefile passes the base image as the `BASE_IMAGE` build arg (it owns the
     image/OS/version -> tag mapping).
@@ -335,6 +341,44 @@ the daemon.
   variant (no debian/alpine split). Base entrypoint/CMD/USER inherited; run the
   container with `--privileged`. The rootless daemon socket is
   `/run/user/1000/docker.sock`, so a CLI needs `DOCKER_HOST` pointed there.
+
+## Dev image variant
+
+The three web images (`fpm-nginx`, `fpm-apache`, `frankenphp`) have a `dev` build stage
+(`make <image>-dev[-<os>]`, tag `<php>-<os>-dev`) that layers a development toolbox onto
+the lean prod image: **composer** + **castor** (binaries) and the **xdebug**, **pcov**,
+and **spx** extensions. Not applied to `dind` (not a PHP image).
+
+- **Structure:** multi-stage (`base`/`dev`/`prod`) - see Layout. `dev` runs as `root`
+  to install, then resets `USER ${SERVER_USER}`; it inherits the prod ENTRYPOINT/
+  HEALTHCHECK/etc. Building without `--target` still gives the lean image (the empty
+  `prod` stage is last).
+- **Extensions via the same flow as prod.** The `dev` stage carries the same four
+  extension ARGs + `RUN helper install-extensions` as the base image (plus
+  `install-composer`/`install-castor`), so there is no dev-specific helper command. The
+  extensions are installed through **PIE** (composer `vendor/name:constraint`); the list
+  is defined *once* in the **Makefile** (`DEV_PIE_EXTENSIONS`, default
+  `xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22`) and passed to
+  the dev targets as `PHP_PIE_EXTENSIONS` - override that var, or pass any of the four
+  ARGs via `--build-arg`. pcov has no native PIE package, so it uses PIE's `pecl/` bridge
+  (`pecl/pcov`); xdebug and spx have native PIE packages.
+- **Build headers are distro-specific and kept.** xdebug and spx compile, and
+  `install-extensions` only adds `$PHPIZE_DEPS`+`unzip` as *removable* build-deps - the
+  system headers they need come via `PHP_EXTENSION_PACKAGES` (kept, like any runtime
+  lib), which the Makefile sets per distro: Alpine `linux-headers zlib-dev`, Debian
+  `zlib1g-dev` (its base toolchain covers xdebug). So the `-dev` images retain those
+  headers (a minor size cost, fine for dev - and consistent with the prod extension
+  contract). Verified: all three extensions load.
+- **Config (`common/dev.ini` -> `conf.d/zz-dev.ini`)** tunes the three extensions,
+  env-overridable like the shared php.ini. **xdebug is off by default**
+  (`xdebug.mode = ${XDEBUG_MODE:-off}`) so the dev image carries zero xdebug overhead
+  until opted in (`-e XDEBUG_MODE=debug,coverage`; xdebug also reads `XDEBUG_MODE`
+  natively). `pcov.enabled` defaults on (idle until a runner collects; don't drive
+  coverage with both pcov and xdebug). spx is dormant until activated; its HTTP UI is
+  gated by `spx.http_key` + `spx.http_ip_whitelist` (keep tight before exposing).
+- **Tests:** `make test-dev[-<image>]` runs the shared `common/goss.dev.yaml` (via
+  `GOSS_FILE`) against the Alpine `-dev` tag - asserts the 5 tools are present, xdebug
+  loads but defaults `off`, and `XDEBUG_MODE` overrides it. (Not yet wired into CI.)
 
 ## Status
 
