@@ -13,6 +13,6 @@ FROM ${BASE_IMAGE}
 
 # Extensions install as root; the base image otherwise runs unprivileged as www-data.
 USER root
-RUN helper install-packages libpng-dev \
+RUN helper install-runtime-deps libpng-dev \
  && helper install-docker-ext gd
 USER www-data

@@ -51,7 +51,7 @@ See `README.md` for the authoritative scheme. Summary:
 - `set-user-id <user> <uid> [gid]` -> rewrites the user's uid/gid in
   /etc/passwd + /etc/group (distro-agnostic; Alpine has no usermod). Run it
   *before* the image's `chown -R <user>` so the chown uses the new id.
-- `install-packages <pkgs...>` -> apt-get or apk, with cache cleanup
+- `install-runtime-deps <pkgs...>` -> apt-get or apk, with cache cleanup
 - `install-build-deps <pkgs...>` / `remove-build-deps` -> install the given packages as
   a removable group, then drop what was added. The caller (the Dockerfile) passes the
   packages - the toolchain (`$PHPIZE_DEPS`, an image ENV), `unzip`, and any headers.
@@ -328,7 +328,7 @@ the daemon.
   - **To *extend* either, derive - don't rebuild from the repo.** Build-args / Dockerfile
     edits only apply when building the image from this repo; a downstream `FROM
     <image>:<tag>` user adds extensions with the baked-in `helper` (`USER root; helper
-    install-packages <libs>; helper install-docker-ext/-pecl-ext/-pie-ext <ext>; USER
+    install-runtime-deps <libs>; helper install-docker-ext/-pecl-ext/-pie-ext <ext>; USER
     www-data`). `examples/wordpress/Dockerfile` extends fpm-nginx's defaults with one more,
     `gd` (+`libpng-dev`). PIE's ecosystem is thin - most `pecl/<name>` bridges 404 on
     Packagist; only a few (`pecl/pcov`, `pecl/zip`) and native `vendor/ext-*` install.

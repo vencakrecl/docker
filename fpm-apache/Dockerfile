@@ -15,8 +15,8 @@ COPY common/healthcheck /usr/local/bin/healthcheck
 # lets Apache proxy .php to php-fpm (so .php executes, not served as source) and back
 # the /healthz FPM-ping endpoint. apache2-proxy's conf.d/proxy.conf auto-loads the
 # modules; no LoadModule edit needed on Alpine.
-RUN helper install-packages apache2 \
- && if command -v apk >/dev/null 2>&1; then helper install-packages apache2-proxy; fi \
+RUN helper install-runtime-deps apache2 \
+ && if command -v apk >/dev/null 2>&1; then helper install-runtime-deps apache2-proxy; fi \
  && helper install-s6-overlay
 
 # Optionally build extra PHP extensions at build time (all optional, space-separated):

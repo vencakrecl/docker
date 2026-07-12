@@ -8,7 +8,7 @@ FROM ${BASE_IMAGE} AS base
 COPY common/helper /usr/local/bin/helper
 # Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
 COPY common/healthcheck /usr/local/bin/healthcheck
-RUN helper install-packages nginx \
+RUN helper install-runtime-deps nginx \
  && helper install-s6-overlay
 
 # Default PHP extension set - two per install manager (docker-php-ext, PECL, PIE), all
@@ -95,7 +95,7 @@ RUN case "$(helper detect-os)" in \
     esac \
  && helper install-composer \
  && helper install-castor \
- && helper install-packages unzip \
+ && helper install-runtime-deps unzip \
  && helper install-build-deps $build_deps \
  && helper install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22 \
  && helper remove-build-deps

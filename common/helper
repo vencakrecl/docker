@@ -9,7 +9,7 @@
 #   detect-arch                     print canonical arch: amd64 | arm64
 #   detect-os                       print distro family: debian | alpine
 #   set-user-id <user> <uid> [gid]  change an existing user's uid/gid (host match)
-#   install-packages <pkg...>       install OS packages (apt-get or apk)
+#   install-runtime-deps <pkg...>   install OS packages that stay (apt-get or apk)
 #   install-build-deps <pkg...>     install the given packages as a removable group (the
 #                                   caller passes the toolchain $PHPIZE_DEPS, unzip, headers)
 #   remove-build-deps               drop what install-build-deps newly added (Alpine: the
@@ -92,6 +92,9 @@ _fetch() {
 
 # --- package install ---------------------------------------------------------
 
+# Generic "install OS packages (kept)" primitive. Exposed as the `install-runtime-deps`
+# command, and reused internally for build-time packages too (s6's xz, the Debian
+# build-deps, curl) - hence the neutral function name.
 install_packages() {
     [ "$#" -gt 0 ] || return 0
     os="$(detect_os)"
@@ -107,7 +110,7 @@ install_packages() {
             rm -rf /var/lib/apt/lists/*
             ;;
         *)
-            echo "install-packages: unsupported OS '$os'" >&2
+            echo "install-runtime-deps: unsupported OS '$os'" >&2
             return 1
             ;;
     esac
@@ -300,7 +303,7 @@ case "$cmd" in
     detect-arch) detect_arch ;;
     detect-os) detect_os ;;
     set-user-id) set_user_id "$@" ;;
-    install-packages) install_packages "$@" ;;
+    install-runtime-deps) install_packages "$@" ;;
     install-build-deps) install_build_deps "$@" ;;
     remove-build-deps) remove_build_deps ;;
     install-extensions) install_extensions ;;

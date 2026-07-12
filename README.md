@@ -69,7 +69,7 @@ Dockerfile can `COPY common/helper`.
 |---------|---------|
 | `detect-arch` / `detect-os` | canonical arch (`amd64`/`arm64`) and distro (`debian`/`alpine`) |
 | `set-user-id <user> <uid> [gid]` | change a user's uid/gid (host-user matching) |
-| `install-packages <pkgs...>` | apt-get or apk, with cache cleanup |
+| `install-runtime-deps <pkgs...>` | apt-get or apk, with cache cleanup |
 | `install-s6-overlay` | s6-overlay init/process supervisor |
 | `install-composer` | Composer (sha256-verified) |
 | `install-pie` | PIE, the PHP extension installer |
