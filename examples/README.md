@@ -1,12 +1,15 @@
 # Examples: run real framework apps on the web images
 
-Each subfolder runs a real PHP framework on all three web images (`fpm-nginx`,
-`fpm-apache`, `frankenphp`) at once, so you can smoke-test the images against a real
-front controller: docroot via `SERVER_ROOT`, routing, the built-in `HEALTHCHECK`, and
-graceful `docker stop`.
+Symfony, Laravel, and Nette run on all three web images (`fpm-nginx`, `fpm-apache`,
+`frankenphp`) at once, built straight from the repo, so you can smoke-test the images
+against a real front controller: docroot via `SERVER_ROOT`, routing, the built-in
+`HEALTHCHECK`, and graceful `docker stop`. **WordPress is different**: it runs only on
+`fpm-nginx` and is built by **deriving** from that image (`wordpress/Dockerfile`) to show
+how to add extensions when you consume an image as a base (see below).
 
-Only the `docker-compose.yml` files are committed. The framework skeleton is installed
-on demand into `<framework>/app/` (git-ignored) by a `make` target.
+Only the `docker-compose.yml` files (and `wordpress/Dockerfile`) are committed. The
+framework skeleton is installed on demand into `<framework>/app/` (git-ignored) by a
+`make` target.
 
 Each compose tunes PHP for its framework through the images' **env knobs**
 (`common/php.ini` - e.g. `PHP_OPCACHE_MEMORY_CONSUMPTION`, `PHP_MEMORY_LIMIT`,
@@ -42,23 +45,28 @@ docker compose -f examples/symfony/docker-compose.yml down
 
 Targets: `make -C examples laravel`, `make -C examples symfony`, `make -C examples nette`,
 `make -C examples wordpress`. Each installs into `<framework>/app` via a throwaway
-container (no host PHP/Composer needed). All four composes use ports 8081/8082/8083,
-so run one framework at a time.
+container (no host PHP/Composer needed). Symfony/Laravel/Nette use ports 8081/8082/8083
+(one per image); WordPress uses only 8081 (`fpm-nginx`). Run one framework at a time.
 
-## Required PHP extensions (heads-up)
+## Adding PHP extensions (WordPress shows the pattern)
 
-The images ship the stock `php:*-fpm` extension set. Some frameworks need more, added
-per image with `helper install-docker-ext <ext>` (see the root README/CLAUDE.md):
+The images ship the stock `php:*-fpm` extension set. When an app needs more, the intended
+way is to **derive from the image** and add them with the baked-in `helper` - no repo
+build context, no build-args, no rebuilding the base from source. **WordPress demonstrates
+this**: `wordpress/Dockerfile` is `FROM fpm-nginx:<tag>` + `helper install-docker-ext
+mysqli gd` (see the root README/CLAUDE.md for the `helper` commands). Build the base first
+(`make fpm-nginx-alpine`), then `docker compose -f examples/wordpress/docker-compose.yml up
+--build`.
 
 | Framework | Extensions beyond the base | Notes |
 | --------- | -------------------------- | ----- |
 | Symfony (skeleton) | none (uses polyfills) | works out of the box |
 | Nette (web-project) | none for the welcome page | |
 | Laravel | usually `pdo_*`, `mbstring` is bundled | fine for the welcome page; a DB app needs `pdo_mysql`/`pdo_pgsql` |
-| WordPress | `mysqli`, `gd` (+ a DB) | a fresh core redirects to the installer until these are added |
+| WordPress | `mysqli`, `gd` (+ a DB) | added by deriving (see `wordpress/Dockerfile`); a fresh core redirects to the installer until these are present |
 
-These examples are the place to discover exactly which extensions a real app needs on
-these base images.
+Symfony/Laravel/Nette build the images straight from the repo for a quick smoke test;
+WordPress is the one that shows consuming an image **as a base** and extending it.
 
 ## Health status
 
