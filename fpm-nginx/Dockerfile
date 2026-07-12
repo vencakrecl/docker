@@ -28,7 +28,7 @@ RUN export PHP_BUILD_PACKAGES="$PHPIZE_DEPS unzip${PHP_BUILD_PACKAGES:+ $PHP_BUI
  && helper install-extensions
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
-COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
+COPY common/php.ini ${PHP_INI_DIR}/conf.d/zz-common.ini
 # Shared PHP-FPM pool tuning (PHP_FPM_* env, defaults in the file).
 COPY common/php-fpm.conf /usr/local/etc/php-fpm.d/zzz-common.conf
 
@@ -95,7 +95,7 @@ USER root
 ARG PHP_DOCKER_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS="xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22"
-COPY common/dev.ini /usr/local/etc/php/conf.d/zz-dev.ini
+COPY common/dev.ini ${PHP_INI_DIR}/conf.d/zz-dev.ini
 # Per-distro system packages for the dev extensions, by lifetime:
 #   PHP_BUILD_PACKAGES    build deps, dropped after the build - the toolchain ($PHPIZE_DEPS)
 #                         + unzip (pecl/pie), plus headers (xdebug needs linux-headers on
