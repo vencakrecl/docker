@@ -11,11 +11,16 @@ A collection of Docker images, each in its own directory with a single `Dockerfi
 - `frankenphp` - FrankenPHP
 - `dind` - Docker-in-Docker (rootless)
 
-There is no CI yet. Local builds go through the `Makefile` (see Commands below).
+Local builds go through the `Makefile` (see Commands); CI
+(`.github/workflows/ci.yml`) builds, goss-tests and publishes to GHCR (see CI).
+
+User-facing docs: `README.md` is a short landing page; the detail lives in `docs/`
+(`tags.md`, `configuration.md`, `building.md`, `testing.md`). Keep them in sync when
+behaviour changes - `docs/configuration.md` in particular is the full env-var reference.
 
 ## Naming and tags
 
-See `README.md` for the authoritative scheme. Summary:
+See `docs/tags.md` for the authoritative scheme. Summary:
 
 - Every image ships Debian and Alpine variants and is multi-arch (`linux/amd64` + `linux/arm64`).
 - Architecture is never in the tag — a single tag is a manifest list serving both arches.
@@ -35,6 +40,13 @@ See `README.md` for the authoritative scheme. Summary:
   stage (all the prod build steps), a `dev` stage that layers the dev toolbox on top
   (`--target dev`), and a trailing empty `prod` stage (`FROM base`) kept *last* so a
   plain `docker build`/compose with no `--target` still yields the lean prod image.
+- **Section markers.** Dockerfiles are organised with paired, foldable comment markers
+  `###> SECTION NAME` … `###< SECTION NAME` (uppercase; convention borrowed from the
+  internal php-base repo). The stage wrappers are `BASE IMAGE` / `DEV IMAGE` / `PROD IMAGE`,
+  nesting sub-sections (`RUNTIME DEPS`, `PHP EXTENSIONS`, `SERVER SETTINGS`,
+  `PHP [& FPM] CONFIGURATION`, `NON-ROOT USER`, `ENTRYPOINT & RUNTIME METADATA`). Keep the
+  markers balanced when editing. Prose comments are otherwise kept minimal - only genuinely
+  non-obvious rationale (e.g. the s6 SIGTERM shutdown gotcha) survives.
 - Debian vs Alpine is a build-time input, not a separate file:
   - The Makefile passes the base image as the `BASE_IMAGE` build arg (it owns the
     image/OS/version -> tag mapping).
@@ -344,8 +356,9 @@ the daemon.
   fix-attrs/loggers/syslogd. Requirements: the runtime dirs must be writable by
   www-data - `chown -R www-data /run <server dirs>` (nginx: `/var/lib/nginx`
   `/var/log/nginx` which is a symlink `chown -R` won't follow; apache: switch
-  `Listen 80`→`8080` and `User/Group` to www-data per distro, chown
-  `/var/log/apache2`). frankenphp uses `ENV SERVER_NAME=:8080` (plain HTTP, no
+  `Listen 80`→`8080` and `User/Group` to www-data per distro - logs go to
+  stdout/stderr so no log dir is chowned, see Logging). frankenphp uses
+  `ENV SERVER_NAME=:8080` (plain HTTP, no
   443/auto-TLS) and chowns `/app /config /data`.
 - **Host-user matching (local dev):** the web images take `USER_ID`/`GROUP_ID`
   build args; when set they `helper set-user-id www-data ...` *before* the chown,
@@ -385,11 +398,13 @@ the daemon.
     newly installed (base `$PHPIZE_DEPS` and runtime libs survive). So the transient build
     packages leave no trace (Debian keeps its base toolchain). Verified: pecl `redis` on
     Alpine loads and autoconf is gone afterward; pie `xdebug/xdebug` on Debian loads.
-  - Extensions needing extra *system* packages take them via two knobs, by lifetime:
-    **`PHP_RUNTIME_PACKAGES`** for runtime libs (KEPT - e.g. `gd`->`libpng-dev`), and
-    **`PHP_BUILD_PACKAGES`** for build-only deps (REMOVED after the build, joined to the
-    build-deps group - e.g. `xdebug` on Alpine->`linux-headers`, spx->zlib headers). Put a
-    package in whichever matches whether its files are needed at runtime.
+  - Extensions needing extra *system* packages get explicit `helper` calls in the
+    Dockerfile (there are **no** `PHP_*_PACKAGES` build args): `install-runtime-deps`
+    for libs that must stay (e.g. `gd`->`libpng-dev`, as in `examples/wordpress`), and
+    the removable `install-build-deps` group for build-only headers. The `dev` stage
+    does exactly this via its per-distro `detect-os` `case` (Alpine `linux-headers
+    zlib-dev`, Debian `zlib1g-dev`), splitting `build_deps` (removed) from `runtime_deps`
+    (kept).
   - Not expressible through the args (use the helper / a derived Dockerfile):
     `docker-php-ext-configure` flags (e.g. gd with jpeg/freetype) and per-extension PIE
     config flags (e.g. `asgrim/example-pie-extension` needs `--enable-...`).
