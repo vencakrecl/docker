@@ -6,7 +6,7 @@
 #
 # WordPress serves from the project root (docroot = /app) and needs a database plus
 # the mysqli + gd extensions (not in the base images). The extensions are built via
-# the images' PHP_EXTENSIONS/PHP_EXTENSION_PACKAGES build args (below), and a MariaDB
+# the images' PHP_DOCKER_EXTENSIONS/PHP_RUNTIME_PACKAGES build args (below), and a MariaDB
 # `db` service is included, so a fresh core reaches the setup wizard.
 #
 # This uses plain WordPress core (not the official `wordpress` image), so there is no
@@ -16,8 +16,8 @@ name: example-wordpress
 
 # Build args shared by the three web services: install mysqli (DB) and gd (images).
 x-ext: &ext
-  PHP_EXTENSIONS: "mysqli gd"
-  PHP_EXTENSION_PACKAGES: "libpng-dev"
+  PHP_DOCKER_EXTENSIONS: "mysqli gd"
+  PHP_RUNTIME_PACKAGES: "libpng-dev"
 
 x-app: &app
   # PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.

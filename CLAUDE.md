@@ -57,8 +57,8 @@ See `README.md` for the authoritative scheme. Summary:
   --virtual` group, dropped whole. Debian: `$PHPIZE_DEPS` is the base's (kept); the
   added `unzip`+extras are recorded and `apt-get purge --auto-remove`d (runtime libs
   survive). So on both distros the transient build packages leave no trace.
-- `install-extensions` -> install the `PHP_EXTENSIONS`/`PHP_PECL_EXTENSIONS`/
-  `PHP_PIE_EXTENSIONS` build args, plus `PHP_EXTENSION_PACKAGES` (kept - runtime system
+- `install-extensions` -> install the `PHP_DOCKER_EXTENSIONS`/`PHP_PECL_EXTENSIONS`/
+  `PHP_PIE_EXTENSIONS` build args, plus `PHP_RUNTIME_PACKAGES` (kept - runtime system
   libs) and `PHP_BUILD_PACKAGES` (removed - build-only deps, joined to the build-deps
   group); all read from env. Wraps the
   above so each web Dockerfile is just the 4 `ARG`s + `RUN helper install-extensions`
@@ -307,17 +307,18 @@ the daemon.
   on Linux; Docker Desktop auto-maps). Makefile passes them only when set (so no
   build warning on dind). Default unset = hardened uid 82/33. Runtime alternative:
   `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
-- **Extra PHP extensions (build-time args):** all three web images take four optional,
-  space-separated args: `PHP_EXTENSIONS` (`docker-php-ext-install`, bundled),
-  `PHP_PECL_EXTENSIONS` (PECL), `PHP_PIE_EXTENSIONS` (PIE, composer `vendor/name`), and
-  `PHP_EXTENSION_PACKAGES` (extra system libs, kept in the image). All default empty
+- **Extra PHP extensions (build-time args):** all three web images take five optional,
+  space-separated args: `PHP_DOCKER_EXTENSIONS` (`docker-php-ext-install`, bundled),
+  `PHP_PECL_EXTENSIONS` (PECL), `PHP_PIE_EXTENSIONS` (PIE, composer `vendor/name`),
+  `PHP_RUNTIME_PACKAGES` (extra runtime system libs, kept), and `PHP_BUILD_PACKAGES`
+  (build-only deps, removed after the build). All default empty
   (no-op, so the base images stay lean). Example:
-  `--build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"`
+  `--build-arg PHP_DOCKER_EXTENSIONS="mysqli gd" --build-arg PHP_RUNTIME_PACKAGES="libpng-dev"`
   (used by `examples/wordpress`).
   - Bundled extensions (`docker-php-ext-install`) need no caller-provided toolchain:
     `docker-php-ext-install` installs its build deps transiently and purges them itself
     (verified - the Alpine build log ends with `Purging musl-dev / libgcc`; `gcc` is
-    absent before and after). So `install-extensions` does *not* wrap `PHP_EXTENSIONS` in
+    absent before and after). So `install-extensions` does *not* wrap `PHP_DOCKER_EXTENSIONS` in
     the build-deps bracket.
   - PECL/PIE compile external sources and need `$PHPIZE_DEPS` - present on Debian, absent
     on Alpine. The args auto-add it (plus `unzip`, which PIE needs to fetch packages) via
@@ -327,7 +328,7 @@ the daemon.
     transient build packages leave no trace on either distro. Verified: pecl `redis` on
     Alpine loads and autoconf is gone afterward; pie `xdebug/xdebug` on Debian loads.
   - Extensions needing extra *system* packages take them via two knobs, by lifetime:
-    **`PHP_EXTENSION_PACKAGES`** for runtime libs (KEPT - e.g. `gd`->`libpng-dev`), and
+    **`PHP_RUNTIME_PACKAGES`** for runtime libs (KEPT - e.g. `gd`->`libpng-dev`), and
     **`PHP_BUILD_PACKAGES`** for build-only deps (REMOVED after the build, joined to the
     build-deps group - e.g. `xdebug` on Alpine->`linux-headers`, spx->zlib headers). Put a
     package in whichever matches whether its files are needed at runtime.
@@ -375,7 +376,7 @@ and **spx** extensions. Not applied to `dind` (not a PHP image).
   distro-specific system headers, so the `dev` stage's `RUN` branches on `helper
   detect-os` and sets **`PHP_BUILD_PACKAGES`** (Alpine `linux-headers zlib-dev`, Debian
   `zlib1g-dev`; the base toolchain covers xdebug on Debian). Because that goes through
-  the *removable* build-deps group (not the kept `PHP_EXTENSION_PACKAGES`), the headers
+  the *removable* build-deps group (not the kept `PHP_RUNTIME_PACKAGES`), the headers
   are dropped after the build - so the `-dev` images don't carry them (~7 MB saved on
   Alpine). Each `dev` stage is self-contained - `docker build --target dev` works without
   the Makefile. Verified: all three extensions load and the headers are gone afterward

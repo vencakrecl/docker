@@ -14,8 +14,8 @@
 #   remove-build-deps               drop what install-build-deps added (unzip/extras +
 #                                   toolchain on Alpine; unzip/extras purged on Debian,
 #                                   base $PHPIZE_DEPS kept)
-#   install-extensions              install PHP_EXTENSIONS/PHP_PECL_EXTENSIONS/
-#                                   PHP_PIE_EXTENSIONS + PHP_EXTENSION_PACKAGES (kept
+#   install-extensions              install PHP_DOCKER_EXTENSIONS/PHP_PECL_EXTENSIONS/
+#                                   PHP_PIE_EXTENSIONS + PHP_RUNTIME_PACKAGES (kept
 #                                   runtime libs) / PHP_BUILD_PACKAGES (removed build-only
 #                                   deps), all from env
 #   install-s6-overlay              install s6-overlay (process supervisor / init)
@@ -252,18 +252,18 @@ remove_build_deps() {
 }
 
 # install_extensions - install the extensions named by the build args (exposed as env in
-# the RUN): PHP_EXTENSIONS (docker-php-ext-install), PHP_PECL_EXTENSIONS, PHP_PIE_EXTENSIONS,
-# with PHP_EXTENSION_PACKAGES for extra system libs (kept). pecl/pie compile from source,
+# the RUN): PHP_DOCKER_EXTENSIONS (docker-php-ext-install), PHP_PECL_EXTENSIONS, PHP_PIE_EXTENSIONS,
+# with PHP_RUNTIME_PACKAGES for extra system libs (kept). pecl/pie compile from source,
 # so their toolchain (+unzip for pie) is added and removed to keep the image lean. No-op
 # when all are empty.
 install_extensions() {
     set -eu
-    if [ -n "${PHP_EXTENSION_PACKAGES:-}" ]; then install_packages $PHP_EXTENSION_PACKAGES; fi
-    if [ -n "${PHP_EXTENSIONS:-}" ]; then install_docker_ext $PHP_EXTENSIONS; fi
+    if [ -n "${PHP_RUNTIME_PACKAGES:-}" ]; then install_packages $PHP_RUNTIME_PACKAGES; fi
+    if [ -n "${PHP_DOCKER_EXTENSIONS:-}" ]; then install_docker_ext $PHP_DOCKER_EXTENSIONS; fi
     if [ -n "${PHP_PECL_EXTENSIONS:-}" ] || [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then
         # PHP_BUILD_PACKAGES: extra build-only system deps (e.g. headers) joined to the
         # removable toolchain group, so they are dropped after the build - unlike
-        # PHP_EXTENSION_PACKAGES, which are kept for runtime libs.
+        # PHP_RUNTIME_PACKAGES, which are kept for runtime libs.
         install_build_deps ${PHP_BUILD_PACKAGES:-}
         if [ -n "${PHP_PECL_EXTENSIONS:-}" ]; then install_pecl_ext $PHP_PECL_EXTENSIONS; fi
         if [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then install_pie; install_pie_ext $PHP_PIE_EXTENSIONS; fi

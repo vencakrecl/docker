@@ -10,14 +10,14 @@ COPY common/helper /usr/local/bin/helper
 COPY common/healthcheck /usr/local/bin/healthcheck
 
 # Optionally build extra PHP extensions at build time (all optional, space-separated):
-#   PHP_EXTENSIONS          docker-php-ext-install names (bundled), e.g. "mysqli gd"
-#   PHP_PECL_EXTENSIONS     PECL packages, e.g. "redis"
-#   PHP_PIE_EXTENSIONS      PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
-#   PHP_EXTENSION_PACKAGES  extra runtime system libs some extensions need (e.g. "libpng-dev"), KEPT
-#   PHP_BUILD_PACKAGES      build-only deps (e.g. headers like "linux-headers"), REMOVED after build
+#   PHP_DOCKER_EXTENSIONS  docker-php-ext-install names (bundled), e.g. "mysqli gd"
+#   PHP_PECL_EXTENSIONS    PECL packages, e.g. "redis"
+#   PHP_PIE_EXTENSIONS     PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
+#   PHP_RUNTIME_PACKAGES   extra runtime system libs (e.g. "libpng-dev"), KEPT
+#   PHP_BUILD_PACKAGES     build-only deps (e.g. headers "linux-headers"), REMOVED after build
 # helper install-extensions reads these and adds/removes the pecl/pie build deps itself.
-ARG PHP_EXTENSION_PACKAGES=""
-ARG PHP_EXTENSIONS=""
+ARG PHP_RUNTIME_PACKAGES=""
+ARG PHP_DOCKER_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS=""
 ARG PHP_BUILD_PACKAGES=""
@@ -79,15 +79,15 @@ USER root
 # Dev tooling: composer + castor (binaries), then the dev extensions (xdebug/pcov/spx)
 # via the same install-extensions flow as the base image. All four ARGs are overridable
 # at build time; the defaults below are the standard dev set (PIE names, pinned).
-ARG PHP_EXTENSION_PACKAGES=""
-ARG PHP_EXTENSIONS=""
+ARG PHP_RUNTIME_PACKAGES=""
+ARG PHP_DOCKER_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS="xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22"
 COPY common/dev.ini /usr/local/etc/php/conf.d/zz-dev.ini
 # Build-only headers the extensions compile against, one list per distro (Alpine:
 # linux-headers for xdebug + zlib-dev for spx; Debian: zlib1g-dev for spx - its base
 # toolchain covers xdebug). Passed as PHP_BUILD_PACKAGES so install-extensions drops
-# them after the build (not needed at runtime), unlike the kept PHP_EXTENSION_PACKAGES.
+# them after the build (not needed at runtime), unlike the kept PHP_RUNTIME_PACKAGES.
 RUN helper install-composer \
  && helper install-castor \
  && case "$(helper detect-os)" in \
