@@ -242,11 +242,16 @@ install_gcloud() {
 # Alpine package; pip is the documented path). Builds in a removable toolchain group
 # so gcc/cargo/headers leave no trace; the venv (with `az` symlinked onto PATH) stays.
 install_azure_cli() {
+    # Install from a pinned, hash-verified lockfile (pip --require-hashes): azure-cli plus
+    # its *entire* transitive tree is listed with exact versions + sha256, so a tampered
+    # PyPI mirror or MITM is caught. Regenerate the lockfile with dind/gen-azure-hashes.sh
+    # after bumping AZURE_CLI_VERSION (the version now lives in the lockfile, not this env).
+    reqs="${AZURE_CLI_REQUIREMENTS:-/usr/local/etc/azure-cli-requirements.txt}"
+    [ -f "$reqs" ] || { echo "install-azure-cli: hashed requirements not found: $reqs" >&2; return 1; }
     install_packages python3
     install_build_deps gcc musl-dev python3-dev libffi-dev openssl-dev linux-headers make cargo
     python3 -m venv /opt/azure-cli
-    /opt/azure-cli/bin/pip install --no-cache-dir --upgrade pip
-    /opt/azure-cli/bin/pip install --no-cache-dir "azure-cli==${AZURE_CLI_VERSION}"
+    /opt/azure-cli/bin/pip install --no-cache-dir --require-hashes -r "$reqs"
     ln -s /opt/azure-cli/bin/az /usr/local/bin/az
     remove_build_deps
 }

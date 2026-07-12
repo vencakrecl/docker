@@ -5,6 +5,8 @@ ARG BASE_IMAGE=docker:29-dind-rootless
 FROM ${BASE_IMAGE}
 
 COPY common/helper /usr/local/bin/helper
+# Hash-verified pip lockfile for the CLOUD=azure variant (unused by other variants).
+COPY dind/azure-cli-requirements.txt /usr/local/etc/azure-cli-requirements.txt
 ###< BASE IMAGE & TOOLBOX
 
 ###> CLOUD CLI

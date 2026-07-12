@@ -81,7 +81,8 @@ See `docs/tags.md` for the authoritative scheme. Summary:
   `dind` variants (Alpine only, since the dind base is Alpine): aws via apk community;
   gcloud from the versioned tarball with system musl python3 (bundled glibc python
   dropped) + bash/libc6-compat; azure via pip into a `/opt/azure-cli` venv (`az` on
-  PATH), toolchain installed/removed as a build-deps group.
+  PATH) from the hash-verified lockfile `dind/azure-cli-requirements.txt` (COPYed to
+  `/usr/local/etc/`, `pip --require-hashes`), toolchain installed/removed as a build-deps group.
 Each installs + enables the extension(s); every arg is an extension name (multiple
 allowed):
 
@@ -111,8 +112,10 @@ pair; trust-on-first-use). s6-overlay (`S6_OVERLAY_SHA256_{NOARCH,AMD64,ARM64}`)
 (`GCLOUD_SHA256_<ARCH>`) all pin their digest next to the version.
 Like the `*_VERSION` pins these are helper env vars, not wired as Dockerfile `ARG`s, so a plain
 `docker build` uses the defaults; if you do override a version (set the env when invoking helper,
-or add an `ARG`), set the matching `*_SHA256` too or verification fails - bump both together. Azure CLI installs via pip and is version-pinned only (hash-pinning
-every transitive dep is impractical). AWS CLI is an apk package (verified by apk). The verifier is
+or add an `ARG`), set the matching `*_SHA256` too or verification fails - bump both together. Azure CLI installs via pip
+under `--require-hashes` from `dind/azure-cli-requirements.txt`, a lockfile pinning its whole
+transitive tree to exact versions + PyPI sha256; regenerate it with `dind/gen-azure-hashes.sh`
+after bumping `AZURE_CLI_VERSION` (the version lives in the lockfile). AWS CLI is an apk package (verified by apk). The verifier is
 exposed as `helper verify-sha256 <file> <sha256>`; CI reuses it to check its goss binary (against
 the pinned per-arch `GOSS_SHA256_{AMD64,ARM64}`) and the `dgoss` script (pinned via `DGOSS_SHA256`).
 - Where the distro layout genuinely diverges (e.g. the Apache config tree, or
