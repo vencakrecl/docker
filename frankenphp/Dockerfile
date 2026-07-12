@@ -34,14 +34,21 @@ ENV SERVER_ROOT=/app/public
 # Request time budget (seconds). frankenphp has no FastCGI proxy, but the shared
 # php.ini ties PHP's max_execution_time to it, so it caps request duration here too.
 ENV SERVER_TIMEOUT=30
+# Health endpoint (default HEALTHCHECK_PATH): frankenphp has no php-fpm to ping, so
+# Caddy answers /healthz with a static 200 (no PHP runs) - the frankenphp equivalent of
+# the fpm images' FPM ping. Injected via the base Caddyfile's
+# {$CADDY_SERVER_EXTRA_DIRECTIVES} placeholder (inside the site block, before php_server).
+# Overriding this env drops the route - re-add "respond /healthz 200" if you set your own.
+ENV CADDY_SERVER_EXTRA_DIRECTIVES="respond /healthz 200"
 
 # Hello-world landing page in the docroot, also the HEALTHCHECK target (index.php
 # overrides the base welcome page); must come after ENV SERVER_ROOT and before the
 # chown below so it is owned correctly.
 COPY common/index.php ${SERVER_ROOT}/index.php
-# HTTP path the HEALTHCHECK probes; / serves index.php (repoint at your app's health
-# route if desired).
-ENV HEALTHCHECK_PATH=/
+# HTTP path the HEALTHCHECK probes. Default /healthz is Caddy's static-200 health route
+# (see CADDY_SERVER_EXTRA_DIRECTIVES above) - a cheap, app-independent liveness check.
+# Set to / for an end-to-end check that serves index.php, or your app's route (e.g. /up).
+ENV HEALTHCHECK_PATH=/healthz
 
 # Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
 # USER and the chown below are fixed at build and the container runs non-root, so it

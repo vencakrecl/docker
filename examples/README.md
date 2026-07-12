@@ -62,11 +62,22 @@ these base images.
 
 ## Health status
 
-The images' `HEALTHCHECK` probes `/` (`HEALTHCHECK_PATH=/`). A bare skeleton may not
-return 2xx there - e.g. a fresh Symfony skeleton serves its "Welcome" page with a **404**
-(no routes yet), so the container shows `unhealthy` even though the stack works. Add a
-route (or a real app), or override `HEALTHCHECK_PATH` to a 2xx route, to get `healthy`.
-Laravel's and Nette's default homepages return 200.
+The images' `HEALTHCHECK` defaults to `HEALTHCHECK_PATH=/healthz` - php-fpm's ping (fpm
+images) or a Caddy static 200 (frankenphp), answered without running app code. So **all
+four examples report `healthy` out of the box**, independent of the app's own routes
+(this is why a bare Symfony skeleton no longer shows `unhealthy` - the old `/` default
+hit its route-less 404). `/healthz` only proves the web server + PHP runtime are up, not
+that the app works; override `HEALTHCHECK_PATH` for a deeper, app-level check:
+
+| App | Deeper check | Behaviour |
+| --- | ------------ | --------- |
+| Laravel | `HEALTHCHECK_PATH=/up` (set in its compose) | built-in health route, 200 if the app boots (dispatches `DiagnosingHealth` for DB/cache checks) - validates the app, not just the runtime |
+| Symfony | add a route, then set `HEALTHCHECK_PATH` to it | no built-in health route (unlike Laravel's `/up`) |
+| Nette | `HEALTHCHECK_PATH=/` | welcome page returns 200 |
+| WordPress | `HEALTHCHECK_PATH=/` | fresh core 302→installer; healthy via 3xx (`curl -L`) |
+
+Set `HEALTHCHECK_PATH=/` to serve the docroot's `index.php` end-to-end, or any 2xx/3xx
+app route.
 
 ## Ownership / writes
 

@@ -179,9 +179,18 @@ UTC timezone): `PHP_MEMORY_LIMIT` (128M), `PHP_UPLOAD_MAX_FILESIZE` (2M),
 `PHP_POST_MAX_SIZE` (8M), `PHP_MAX_INPUT_VARS` (1000), `PHP_DATE_TIMEZONE` (UTC),
 `PHP_OPCACHE_MEMORY_CONSUMPTION` (128), `PHP_OPCACHE_MAX_ACCELERATED_FILES` (10000),
 `PHP_OPCACHE_INTERNED_STRINGS_BUFFER` (8), `PHP_OPCACHE_VALIDATE_TIMESTAMPS` (1),
-`PHP_REALPATH_CACHE_SIZE` (4096K), `PHP_REALPATH_CACHE_TTL` (120). Each has an `env-*`
-goss test that sets it inline and asserts `ini_get`. The `examples/<fw>` composes tune
-PHP per framework purely through these env vars (no mounted `php.ini`).
+`PHP_OPCACHE_ENABLE_CLI` (0; enable OPcache for the CLI SAPI - for long-running CLI
+workers), `PHP_OPCACHE_PRELOAD` (empty = off; a path enables OPcache preloading, e.g.
+Symfony's `config/preload.php`), `PHP_OPCACHE_PRELOAD_USER` (www-data; only applies when
+preload is set, must match `SERVER_USER`), `PHP_REALPATH_CACHE_SIZE` (4096K),
+`PHP_REALPATH_CACHE_TTL` (120). Each has an `env-*`
+goss test that sets it inline and asserts `ini_get` (for preload the CLI's
+`opcache.enable_cli=0` means the path is parsed but not actually loaded, so the test is
+safe with any path). The `examples/<fw>` composes tune
+PHP per framework purely through these env vars (no mounted `php.ini`). The Symfony
+example ships the preload/validate-timestamps knobs commented out as a documented
+production profile (preloading snapshots code at start, so it fights the mounted RW
+dev app - see `examples/symfony/docker-compose.yml`).
 
 `SERVER_TIMEOUT` (seconds, image ENV default **30**, same `SERVER_*` family as
 `SERVER_ROOT`/`SERVER_USER`) is the single request time budget: `common/php.ini` sets
@@ -218,20 +227,24 @@ the daemon.
   runs `common/healthcheck` (copied to `/usr/local/bin/healthcheck`), which HTTP-GETs
   `http://127.0.0.1:${HEALTHCHECK_PORT:-8080}${HEALTHCHECK_PATH}` and exits 0 only on
   2xx/3xx (curl, with a PHP `file_get_contents` fallback - both present in the base).
-  `HEALTHCHECK_PATH` defaults to `/`, which serves the shared `common/index.php`
-  landing page (no separate health file). The probe goes through the full chain (web
-  server -> php-fpm -> PHP, or frankenphp -> PHP), so healthy means the whole stack
-  serves. `start-period=10s`.
-- **Caveat (docroot override):** unlike serversideup's server-level `/healthcheck`
-  route, ours hits `/` in the docroot. If you mount your own docroot over
-  `SERVER_ROOT`, `/` serves your app's index instead - set `HEALTHCHECK_PATH` to a
-  route your app serves (e.g. Laravel `/up`).
+  `HEALTHCHECK_PATH` defaults to **`/healthz`**, a cheap, app-independent liveness
+  endpoint (like serversideup's `/healthcheck`): the **fpm images** back it with
+  php-fpm's **ping** (`ping.path=/healthz`, `ping.response=pong` in `common/php-fpm.conf`;
+  nginx via a `location = /healthz`, apache via `ProxyPass "/healthz"`), so FPM answers
+  200 itself without running any PHP script; **frankenphp** has no FPM, so Caddy answers
+  with a static 200 via `ENV CADDY_SERVER_EXTRA_DIRECTIVES="respond /healthz 200"` (the
+  base Caddyfile's site-block placeholder). Healthy therefore means the web server + PHP
+  runtime accept connections - it does **not** prove the app executes. `start-period=10s`.
+- **Deep / app checks (opt-in):** set `HEALTHCHECK_PATH=/` to probe end-to-end (serves
+  the shared `common/index.php` through the full chain web -> php-fpm -> PHP, or
+  frankenphp -> PHP), or point it at your app's own route (e.g. Laravel `/up`) to also
+  validate the application. `/healthz` is independent of `SERVER_ROOT`, so mounting your
+  own docroot no longer breaks the default probe (the old `/` default served your app's
+  index; that caveat is gone for the default).
 - **dind:** `HEALTHCHECK CMD` (shell form) runs
   `DOCKER_HOST=unix:///run/user/1000/docker.sock docker version` - healthy = the
   rootless daemon answers on its per-user socket. `start-period=30s` (rootlesskit +
   daemon are slow to come up); no PHP/curl involved.
-- On Alpine fpm-apache the endpoint still returns 200 but as raw PHP source (the
-  documented mod_proxy gap), so the probe passes without proving PHP executes.
 
 ## Per-image notes
 
@@ -325,6 +338,6 @@ the daemon.
 
 ## Status
 
-Building and runtime-tested (goss): all images. Known gap: `fpm-apache` on Alpine
-serves `.php` as source (mod_proxy in a separate `apache2-proxy` package not
-installed); Debian apache is fine.
+Building and runtime-tested (goss): all images. (Previously-known gap - `fpm-apache`
+on Alpine serving `.php` as source - is **closed**: the Alpine build now installs the
+`apache2-proxy` package, so mod_proxy_fcgi executes `.php` like Debian.)

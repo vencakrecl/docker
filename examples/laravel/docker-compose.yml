@@ -13,6 +13,11 @@ name: example-laravel
 x-app: &app
   environment:
     SERVER_ROOT: /app/public
+    # The HEALTHCHECK defaults to /healthz (php-fpm ping) - proves the runtime is up
+    # but not the app. Laravel ships a built-in /up route (200 if the app boots; also
+    # dispatches a DiagnosingHealth event for DB/cache checks), so point the probe there
+    # to validate the app itself, not just the runtime.
+    HEALTHCHECK_PATH: /up
     PHP_MEMORY_LIMIT: 256M
     PHP_OPCACHE_INTERNED_STRINGS_BUFFER: 16
   volumes:

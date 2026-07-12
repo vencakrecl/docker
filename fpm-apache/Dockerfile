@@ -10,7 +10,13 @@ FROM ${BASE_IMAGE}
 COPY common/helper /usr/local/bin/helper
 # Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
 COPY common/healthcheck /usr/local/bin/healthcheck
+# apache2 + mod_proxy_fcgi. On Alpine mod_proxy ships in a separate apache2-proxy
+# package (Debian bundles it with apache2, enabled below via a2enmod); installing it
+# lets Apache proxy .php to php-fpm (so .php executes, not served as source) and back
+# the /healthz FPM-ping endpoint. apache2-proxy's conf.d/proxy.conf auto-loads the
+# modules; no LoadModule edit needed on Alpine.
 RUN helper install-packages apache2 \
+ && if command -v apk >/dev/null 2>&1; then helper install-packages apache2-proxy; fi \
  && helper install-s6-overlay
 
 # Optionally build extra PHP extensions at build time (all optional, space-separated):
@@ -81,9 +87,10 @@ RUN if [ -n "$USER_ID" ]; then helper set-user-id "$SERVER_USER" "$USER_ID" "${G
 # DirectoryIndex (Alpine ships none - harmless). SERVER_ROOT is fixed at build time.
 RUN rm -f ${SERVER_ROOT}/index.html
 COPY common/index.php ${SERVER_ROOT}/index.php
-# HTTP path the HEALTHCHECK probes; / serves index.php (repoint at your app's health
-# route if desired).
-ENV HEALTHCHECK_PATH=/
+# HTTP path the HEALTHCHECK probes. Default /healthz is php-fpm's ping endpoint (see
+# common/php-fpm.conf + the vhost ProxyPass) - a cheap, app-independent liveness check.
+# Set to / for an end-to-end check that serves index.php, or your app's route (e.g. /up).
+ENV HEALTHCHECK_PATH=/healthz
 
 # Secure by default: run unprivileged as $SERVER_USER. Make Apache's runtime and log
 # dirs writable by it (port 8080 needs no privilege).

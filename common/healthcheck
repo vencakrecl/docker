@@ -1,10 +1,12 @@
 #!/bin/sh
 # Container HEALTHCHECK probe for the web images. HTTP GET the health endpoint and
-# exit 0 only on a 2xx/3xx status. The endpoint (HEALTHCHECK_PATH, default /, which
-# serves index.php, on HEALTHCHECK_PORT, default 8080) is served through the full
-# request chain - web server -> php-fpm -> PHP (or frankenphp -> PHP) - so a healthy
-# result means the whole stack is up. Point HEALTHCHECK_PATH at your app's own route
-# (e.g. /up) to also validate the application.
+# exit 0 only on a 2xx/3xx status. HEALTHCHECK_PATH defaults to /healthz (on
+# HEALTHCHECK_PORT, default 8080): a cheap, app-independent liveness endpoint answered
+# by php-fpm's ping (fpm images) or a Caddy static 200 (frankenphp) - healthy means the
+# web server + PHP runtime accept connections, no app code runs. For an end-to-end
+# check that PHP executes through the whole stack, set HEALTHCHECK_PATH=/ (serves the
+# docroot index.php); point it at your app's own route (e.g. Laravel /up) to also
+# validate the application.
 set -eu
 
 url="http://127.0.0.1:${HEALTHCHECK_PORT:-8080}${HEALTHCHECK_PATH:-/}"

@@ -43,9 +43,10 @@ COPY fpm-nginx/s6-rc.d /etc/s6-overlay/s6-rc.d
 # Hello-world landing page in the docroot, also the HEALTHCHECK target (SERVER_ROOT
 # is fixed to its default here at build time; mount your own docroot to override).
 COPY common/index.php ${SERVER_ROOT}/index.php
-# HTTP path the HEALTHCHECK probes; / serves index.php (repoint at your app's health
-# route if desired).
-ENV HEALTHCHECK_PATH=/
+# HTTP path the HEALTHCHECK probes. Default /healthz is php-fpm's ping endpoint (see
+# common/php-fpm.conf + the nginx location) - a cheap, app-independent liveness check.
+# Set to / for an end-to-end check that serves index.php, or your app's route (e.g. /up).
+ENV HEALTHCHECK_PATH=/healthz
 
 # Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
 # USER and the chown below are fixed at build and the container runs non-root, so it

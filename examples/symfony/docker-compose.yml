@@ -8,15 +8,31 @@
 # on Linux match ownership via the image's USER_ID/GROUP_ID build args or `user:` here.
 # PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
 # Values follow Symfony's performance docs: https://symfony.com/doc/current/performance.html
+#
+# Production tuning (commented out - this compose is a dev profile with a mounted,
+# editable app). To run it production-shaped, uncomment the two blocks below AND set
+# APP_ENV=prod, then warm the cache (`bin/console cache:warmup`) so preload.php has a
+# prod container to load - the skeleton's config/preload.php is a file_exists no-op
+# until then. Preloading + validate_timestamps=0 snapshot code at container start, so
+# live edits to the mounted app are NOT picked up until you restart the container.
 name: example-symfony
 
 x-app: &app
   environment:
     SERVER_ROOT: /app/public
+    # The container HEALTHCHECK defaults to /healthz (php-fpm ping), so it reports
+    # 'healthy' regardless of app routes - a bare skeleton no longer shows 'unhealthy'.
+    # Symfony has no built-in app-health route (unlike Laravel's /up); to validate the
+    # app too, add a route and point the probe at it, e.g.:  HEALTHCHECK_PATH: /health
     PHP_OPCACHE_MEMORY_CONSUMPTION: 256
     PHP_OPCACHE_MAX_ACCELERATED_FILES: 32531
     PHP_OPCACHE_INTERNED_STRINGS_BUFFER: 32
     PHP_REALPATH_CACHE_TTL: 600
+    # --- production only (see header) ---
+    # PHP_OPCACHE_VALIDATE_TIMESTAMPS: 0        # stop stat()-ing files; reset OPcache on deploy
+    # PHP_OPCACHE_PRELOAD: /app/config/preload.php
+    # preload_user must match the image's runtime user (SERVER_USER, default www-data):
+    # PHP_OPCACHE_PRELOAD_USER: www-data
   volumes:
     - ./app:/app
   restart: unless-stopped

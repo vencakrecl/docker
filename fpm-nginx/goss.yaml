@@ -67,6 +67,18 @@ command:
     exec: env PHP_OPCACHE_VALIDATE_TIMESTAMPS=0 php -r 'echo ini_get("opcache.validate_timestamps");'
     exit-status: 0
     stdout: ["0"]
+  env-php-opcache-enable-cli:
+    exec: env PHP_OPCACHE_ENABLE_CLI=1 php -r 'echo ini_get("opcache.enable_cli");'
+    exit-status: 0
+    stdout: ["1"]
+  env-php-opcache-preload:
+    exec: env PHP_OPCACHE_PRELOAD=/app/config/preload.php php -r 'echo ini_get("opcache.preload");'
+    exit-status: 0
+    stdout: ["/app/config/preload.php"]
+  env-php-opcache-preload-user:
+    exec: env PHP_OPCACHE_PRELOAD_USER=app php -r 'echo ini_get("opcache.preload_user");'
+    exit-status: 0
+    stdout: ["app"]
   env-php-realpath-cache-size:
     exec: env PHP_REALPATH_CACHE_SIZE=8192K php -r 'echo ini_get("realpath_cache_size");'
     exit-status: 0
@@ -100,6 +112,12 @@ command:
     exit-status: 0
     stderr: ["pm.max_requests = 500"]
 http:
+  # Default HEALTHCHECK target: php-fpm ping (no app code runs), 200 + "pong".
+  http://localhost:8080/healthz:
+    status: 200
+    body: ["pong"]
+    timeout: 5000
+  # End-to-end: / serves index.php through nginx -> php-fpm -> PHP.
   http://localhost:8080/:
     status: 200
     body: ["Hello, World!"]
