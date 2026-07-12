@@ -53,10 +53,14 @@ See `README.md` for the authoritative scheme. Summary:
   *before* the image's `chown -R <user>` so the chown uses the new id.
 - `install-packages <pkgs...>` -> apt-get or apk, with cache cleanup
 - `install-build-deps [pkgs...]` / `remove-build-deps` -> add `$PHPIZE_DEPS` + `unzip`
-  (+extras) as a removable group for building pecl/pie exts, then drop it (Alpine
-  `apk --virtual`; no-op remove on Debian, whose base already ships the toolchain)
+  (+extras) for building pecl/pie exts, then drop what was added. Alpine: an `apk
+  --virtual` group, dropped whole. Debian: `$PHPIZE_DEPS` is the base's (kept); the
+  added `unzip`+extras are recorded and `apt-get purge --auto-remove`d (runtime libs
+  survive). So on both distros the transient build packages leave no trace.
 - `install-extensions` -> install the `PHP_EXTENSIONS`/`PHP_PECL_EXTENSIONS`/
-  `PHP_PIE_EXTENSIONS`/`PHP_EXTENSION_PACKAGES` build args (read from env); wraps the
+  `PHP_PIE_EXTENSIONS` build args, plus `PHP_EXTENSION_PACKAGES` (kept - runtime system
+  libs) and `PHP_BUILD_PACKAGES` (removed - build-only deps, joined to the build-deps
+  group); all read from env. Wraps the
   above so each web Dockerfile is just the 4 `ARG`s + `RUN helper install-extensions`
 - `install-s6-overlay` -> s6-overlay init/supervisor (noarch + per-arch tarballs)
 - `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
@@ -310,17 +314,23 @@ the daemon.
   (no-op, so the base images stay lean). Example:
   `--build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"`
   (used by `examples/wordpress`).
-  - Bundled extensions (`docker-php-ext-install`) compile without the toolchain on both
-    distros (they build in the PHP source tree, no `phpize`/autoconf).
+  - Bundled extensions (`docker-php-ext-install`) need no caller-provided toolchain:
+    `docker-php-ext-install` installs its build deps transiently and purges them itself
+    (verified - the Alpine build log ends with `Purging musl-dev / libgcc`; `gcc` is
+    absent before and after). So `install-extensions` does *not* wrap `PHP_EXTENSIONS` in
+    the build-deps bracket.
   - PECL/PIE compile external sources and need `$PHPIZE_DEPS` - present on Debian, absent
     on Alpine. The args auto-add it (plus `unzip`, which PIE needs to fetch packages) via
-    `helper install-build-deps` as a removable group, then `helper remove-build-deps`
-    drops it (Alpine `apk add --virtual`/`apk del`; on Debian the base toolchain stays).
-    Verified: pecl `redis` on Alpine loads and autoconf is gone afterward; pie
-    `xdebug/xdebug` on Debian loads.
-  - Extensions needing extra *system* build headers/libs take them via
-    `PHP_EXTENSION_PACKAGES` (e.g. `gd`->`libpng-dev`, `xdebug` on Alpine->`linux-headers`).
-    Note these are KEPT (not auto-removed), since they may be runtime libs.
+    `helper install-build-deps`, then `helper remove-build-deps` drops what was added:
+    Alpine deletes the `apk --virtual` group; Debian keeps its base `$PHPIZE_DEPS` but
+    `apt-get purge --auto-remove`s the added `unzip`+extras (runtime libs survive). So the
+    transient build packages leave no trace on either distro. Verified: pecl `redis` on
+    Alpine loads and autoconf is gone afterward; pie `xdebug/xdebug` on Debian loads.
+  - Extensions needing extra *system* packages take them via two knobs, by lifetime:
+    **`PHP_EXTENSION_PACKAGES`** for runtime libs (KEPT - e.g. `gd`->`libpng-dev`), and
+    **`PHP_BUILD_PACKAGES`** for build-only deps (REMOVED after the build, joined to the
+    build-deps group - e.g. `xdebug` on Alpine->`linux-headers`, spx->zlib headers). Put a
+    package in whichever matches whether its files are needed at runtime.
   - Not expressible through the args (use the helper / a derived Dockerfile):
     `docker-php-ext-configure` flags (e.g. gd with jpeg/freetype) and per-extension PIE
     config flags (e.g. `asgrim/example-pie-extension` needs `--enable-...`).
@@ -361,13 +371,15 @@ and **spx** extensions. Not applied to `dind` (not a PHP image).
   ARG default (`xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22`) -
   override any of the four ARGs via `--build-arg`. pcov has no native PIE package, so it
   uses PIE's `pecl/` bridge (`pecl/pcov`); xdebug and spx have native PIE packages.
-- **Build headers via distro detection.** xdebug and spx compile, and `install-extensions`
-  only adds `$PHPIZE_DEPS`+`unzip` as *removable* build-deps - the system headers they
-  need are distro-specific, so the `dev` stage's `RUN` branches on `helper detect-os`
-  and installs them (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`; the base
-  toolchain covers xdebug on Debian). They are kept (a minor size cost, fine for dev).
-  Each `dev` stage is therefore self-contained - `docker build --target dev` works
-  without the Makefile. Verified: all three extensions load.
+- **Build headers via distro detection, then removed.** xdebug and spx compile against
+  distro-specific system headers, so the `dev` stage's `RUN` branches on `helper
+  detect-os` and sets **`PHP_BUILD_PACKAGES`** (Alpine `linux-headers zlib-dev`, Debian
+  `zlib1g-dev`; the base toolchain covers xdebug on Debian). Because that goes through
+  the *removable* build-deps group (not the kept `PHP_EXTENSION_PACKAGES`), the headers
+  are dropped after the build - so the `-dev` images don't carry them (~7 MB saved on
+  Alpine). Each `dev` stage is self-contained - `docker build --target dev` works without
+  the Makefile. Verified: all three extensions load and the headers are gone afterward
+  (runtime `zlib`/`zlib1g` stays).
 - **Config (`common/dev.ini` -> `conf.d/zz-dev.ini`)** tunes the three extensions,
   env-overridable like the shared php.ini. **xdebug is off by default**
   (`xdebug.mode = ${XDEBUG_MODE:-off}`) so the dev image carries zero xdebug overhead

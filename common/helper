@@ -11,9 +11,13 @@
 #   set-user-id <user> <uid> [gid]  change an existing user's uid/gid (host match)
 #   install-packages <pkg...>       install OS packages (apt-get or apk)
 #   install-build-deps [pkg...]     install $PHPIZE_DEPS + unzip (+extras), removable group
-#   remove-build-deps               drop that group (Alpine; no-op on Debian)
+#   remove-build-deps               drop what install-build-deps added (unzip/extras +
+#                                   toolchain on Alpine; unzip/extras purged on Debian,
+#                                   base $PHPIZE_DEPS kept)
 #   install-extensions              install PHP_EXTENSIONS/PHP_PECL_EXTENSIONS/
-#                                   PHP_PIE_EXTENSIONS/PHP_EXTENSION_PACKAGES (from env)
+#                                   PHP_PIE_EXTENSIONS + PHP_EXTENSION_PACKAGES (kept
+#                                   runtime libs) / PHP_BUILD_PACKAGES (removed build-only
+#                                   deps), all from env
 #   install-s6-overlay              install s6-overlay (process supervisor / init)
 #   install-composer                install Composer to /usr/local/bin/composer
 #   install-pie                     install PIE (PHP ext installer) to /usr/local/bin/pie
@@ -217,7 +221,12 @@ install_docker_skip_enable_ext() {
 install_build_deps() {
     case "$(detect_os)" in
         alpine) apk add --no-cache --virtual .helper-build-deps $PHPIZE_DEPS unzip "$@" ;;
-        debian) install_packages $PHPIZE_DEPS unzip "$@" ;;
+        debian)
+            # $PHPIZE_DEPS belongs to the base image (keep it); record only what we add
+            # (unzip + any extras) so remove_build_deps can purge exactly those.
+            printf '%s\n' unzip "$@" > /tmp/.helper-build-extras
+            install_packages $PHPIZE_DEPS unzip "$@"
+            ;;
         *) echo "install-build-deps: unsupported OS" >&2; return 1 ;;
     esac
 }
@@ -227,7 +236,18 @@ install_build_deps() {
 remove_build_deps() {
     case "$(detect_os)" in
         alpine) apk del .helper-build-deps 2>/dev/null || true ;;
-        debian) : ;;
+        debian)
+            # Purge only the packages install_build_deps added (unzip + extras) plus any
+            # build-only deps they pulled ($PHPIZE_DEPS stays - it is the base's). Runtime
+            # libs needed by php/others survive --auto-remove.
+            if [ -s /tmp/.helper-build-extras ]; then
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get purge -y --auto-remove $(cat /tmp/.helper-build-extras)
+                apt-get clean
+                rm -f /tmp/.helper-build-extras
+                rm -rf /var/lib/apt/lists/*
+            fi
+            ;;
     esac
 }
 
@@ -241,7 +261,10 @@ install_extensions() {
     if [ -n "${PHP_EXTENSION_PACKAGES:-}" ]; then install_packages $PHP_EXTENSION_PACKAGES; fi
     if [ -n "${PHP_EXTENSIONS:-}" ]; then install_docker_ext $PHP_EXTENSIONS; fi
     if [ -n "${PHP_PECL_EXTENSIONS:-}" ] || [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then
-        install_build_deps
+        # PHP_BUILD_PACKAGES: extra build-only system deps (e.g. headers) joined to the
+        # removable toolchain group, so they are dropped after the build - unlike
+        # PHP_EXTENSION_PACKAGES, which are kept for runtime libs.
+        install_build_deps ${PHP_BUILD_PACKAGES:-}
         if [ -n "${PHP_PECL_EXTENSIONS:-}" ]; then install_pecl_ext $PHP_PECL_EXTENSIONS; fi
         if [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then install_pie; install_pie_ext $PHP_PIE_EXTENSIONS; fi
         remove_build_deps

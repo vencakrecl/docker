@@ -15,12 +15,14 @@ RUN helper install-packages nginx \
 #   PHP_EXTENSIONS          docker-php-ext-install names (bundled), e.g. "mysqli gd"
 #   PHP_PECL_EXTENSIONS     PECL packages, e.g. "redis"
 #   PHP_PIE_EXTENSIONS      PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
-#   PHP_EXTENSION_PACKAGES  extra system libs some extensions need (e.g. "libpng-dev"), kept
+#   PHP_EXTENSION_PACKAGES  extra runtime system libs some extensions need (e.g. "libpng-dev"), KEPT
+#   PHP_BUILD_PACKAGES      build-only deps (e.g. headers like "linux-headers"), REMOVED after build
 # helper install-extensions reads these and adds/removes the pecl/pie build deps itself.
 ARG PHP_EXTENSION_PACKAGES=""
 ARG PHP_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS=""
+ARG PHP_BUILD_PACKAGES=""
 RUN helper install-extensions
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
@@ -87,20 +89,21 @@ FROM base AS dev
 USER root
 # Dev tooling: composer + castor (binaries), then the dev extensions (xdebug/pcov/spx)
 # via the same install-extensions flow as the base image. All four ARGs are overridable
-# at build time; the defaults below are the standard dev set (PIE names, pinned). Their
-# compile headers are distro-specific (Alpine needs linux-headers for xdebug + zlib-dev
-# for spx; Debian needs zlib1g-dev for spx - its base toolchain covers xdebug), so they
-# are installed by detecting the distro rather than via a static PHP_EXTENSION_PACKAGES.
+# at build time; the defaults below are the standard dev set (PIE names, pinned).
 ARG PHP_EXTENSION_PACKAGES=""
 ARG PHP_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS="xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22"
 COPY common/dev.ini /usr/local/etc/php/conf.d/zz-dev.ini
+# Build-only headers the extensions compile against, one list per distro (Alpine:
+# linux-headers for xdebug + zlib-dev for spx; Debian: zlib1g-dev for spx - its base
+# toolchain covers xdebug). Passed as PHP_BUILD_PACKAGES so install-extensions drops
+# them after the build (not needed at runtime), unlike the kept PHP_EXTENSION_PACKAGES.
 RUN helper install-composer \
  && helper install-castor \
  && case "$(helper detect-os)" in \
-      alpine) helper install-packages linux-headers zlib-dev ;; \
-      debian) helper install-packages zlib1g-dev ;; \
+      alpine) export PHP_BUILD_PACKAGES="linux-headers zlib-dev" ;; \
+      debian) export PHP_BUILD_PACKAGES="zlib1g-dev" ;; \
     esac \
  && helper install-extensions
 USER ${SERVER_USER}
