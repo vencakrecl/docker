@@ -77,22 +77,22 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["hea
 FROM base AS dev
 USER root
 # Dev tooling: composer + castor (binaries), then the dev extensions (xdebug/pcov/spx)
-# via the same install-extensions flow as the base image. All four ARGs are overridable
-# at build time; the defaults below are the standard dev set (PIE names, pinned).
-ARG PHP_RUNTIME_PACKAGES=""
+# via the same install-extensions flow as the base image. The extension ARGs are
+# overridable at build time; the default is the standard dev set (PIE names, pinned).
 ARG PHP_DOCKER_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS="xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22"
 COPY common/dev.ini /usr/local/etc/php/conf.d/zz-dev.ini
-# Build-only headers the extensions compile against, one list per distro (Alpine:
-# linux-headers for xdebug + zlib-dev for spx; Debian: zlib1g-dev for spx - its base
-# toolchain covers xdebug). Passed as PHP_BUILD_PACKAGES so install-extensions drops
-# them after the build (not needed at runtime), unlike the kept PHP_RUNTIME_PACKAGES.
+# Per-distro system packages for the dev extensions, by lifetime:
+#   PHP_BUILD_PACKAGES    build-only, dropped after the build - xdebug needs linux-headers
+#                         on Alpine, spx needs zlib headers on both.
+#   PHP_RUNTIME_PACKAGES  kept - unzip so runtime `composer install` can extract packages
+#                         (Debian's base ships none; Alpine's busybox unzip is limited).
 RUN helper install-composer \
  && helper install-castor \
  && case "$(helper detect-os)" in \
-      alpine) export PHP_BUILD_PACKAGES="linux-headers zlib-dev" ;; \
-      debian) export PHP_BUILD_PACKAGES="zlib1g-dev" ;; \
+      alpine) export PHP_BUILD_PACKAGES="linux-headers zlib-dev" PHP_RUNTIME_PACKAGES="unzip" ;; \
+      debian) export PHP_BUILD_PACKAGES="zlib1g-dev"             PHP_RUNTIME_PACKAGES="unzip" ;; \
     esac \
  && helper install-extensions
 USER ${SERVER_USER}

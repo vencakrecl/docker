@@ -372,15 +372,18 @@ and **spx** extensions. Not applied to `dind` (not a PHP image).
   ARG default (`xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22`) -
   override any of the four ARGs via `--build-arg`. pcov has no native PIE package, so it
   uses PIE's `pecl/` bridge (`pecl/pcov`); xdebug and spx have native PIE packages.
-- **Build headers via distro detection, then removed.** xdebug and spx compile against
-  distro-specific system headers, so the `dev` stage's `RUN` branches on `helper
-  detect-os` and sets **`PHP_BUILD_PACKAGES`** (Alpine `linux-headers zlib-dev`, Debian
-  `zlib1g-dev`; the base toolchain covers xdebug on Debian). Because that goes through
-  the *removable* build-deps group (not the kept `PHP_RUNTIME_PACKAGES`), the headers
-  are dropped after the build - so the `-dev` images don't carry them (~7 MB saved on
-  Alpine). Each `dev` stage is self-contained - `docker build --target dev` works without
-  the Makefile. Verified: all three extensions load and the headers are gone afterward
-  (runtime `zlib`/`zlib1g` stays).
+- **Per-distro system packages, by lifetime.** The `dev` stage's `RUN` branches on
+  `helper detect-os` and sets two lists: **`PHP_BUILD_PACKAGES`** (build-only, removed) -
+  the headers xdebug/spx compile against (Alpine `linux-headers zlib-dev`, Debian
+  `zlib1g-dev`; base toolchain covers xdebug on Debian) - and **`PHP_RUNTIME_PACKAGES`**
+  (kept) - `unzip`, so runtime `composer install` can extract packages (Debian's base
+  ships none; Alpine's busybox `unzip` is limited). The build headers go through the
+  *removable* build-deps group so they're dropped after the build (~7 MB saved on
+  Alpine); `unzip` survives because `install_build_deps` records for removal only the
+  packages it *newly* installed (unzip was already present as a runtime pkg). Each `dev`
+  stage is self-contained - `docker build --target dev` works without the Makefile.
+  Verified on both distros: extensions load, build headers gone (runtime `zlib`/`zlib1g`
+  stays), `unzip` present.
 - **Config (`common/dev.ini` -> `conf.d/zz-dev.ini`)** tunes the three extensions,
   env-overridable like the shared php.ini. **xdebug is off by default**
   (`xdebug.mode = ${XDEBUG_MODE:-off}`) so the dev image carries zero xdebug overhead
