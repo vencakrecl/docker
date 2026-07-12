@@ -223,6 +223,56 @@ max_requests). frankenphp embeds PHP (no php-fpm), so it doesn't get this file.
 Gotcha: dynamic pm requires `min_spare <= start_servers <= max_spare` or php-fpm
 refuses to start - the env overrides are interdependent.
 
+## Logging
+
+Every image logs to the container's **stdout/stderr** (12-factor; visible in `docker
+logs`). No log files inside the container. Wiring per source, and what is env-overridable:
+
+- **PHP engine (`common/php.ini`):** the shared php.ini now sets error logging (it set
+  none before), all env-driven like the other knobs: `PHP_LOG_ERRORS` (On),
+  `PHP_ERROR_LOG` (`/proc/self/fd/2` = stderr), `PHP_DISPLAY_ERRORS` (**Off** - never leak
+  errors into the HTTP response; still logged to stderr), `PHP_DISPLAY_STARTUP_ERRORS`
+  (Off), `PHP_ERROR_REPORTING` (`E_ALL`). To add a knob: same recipe as the other php.ini
+  settings (add `key = ${ENV:-default}` + an `env-*` goss test). Note `error_reporting`'s
+  *numeric* value is PHP-version-specific (E_ALL differs across versions), so the goss test
+  sets a fixed number (`PHP_ERROR_REPORTING=0`) rather than asserting E_ALL's integer.
+- **php-fpm (`common/php-fpm.conf`, fpm images):** the base `php:*-fpm` image already ships
+  `docker.conf` with `error_log = /proc/self/fd/2`, `access.log = /proc/self/fd/2`,
+  `catch_workers_output = yes`, `decorate_workers_output = no` - so FPM + PHP worker output
+  already reach stderr. Our `zzz-common.conf` (loads last, wins) just re-declares the key
+  ones as env knobs: `PHP_FPM_LOG_LEVEL` (notice, in a `[global]` block),
+  `PHP_FPM_CATCH_WORKERS_OUTPUT` (yes), `PHP_FPM_ACCESS_LOG` (`/proc/self/fd/2`; set
+  `/dev/null` to silence). frankenphp has no php-fpm, so it doesn't get this file.
+- **nginx (`fpm-nginx`):** `nginx.conf` already used `/dev/stdout` (access) + `/dev/stderr`
+  (error); the error level is now a `${NGINX_ERROR_LOG_LEVEL}` template placeholder rendered
+  by the nginx s6 run script (default `warn`), same mechanism as `${SERVER_ROOT}` /
+  `${FASTCGI_READ_TIMEOUT}` (nginx can't expand env itself).
+- **Apache (`fpm-apache`):** was the one gap - Apache logged to files under
+  `/var/log/apache2`. Now `vhost.conf` ships `ErrorLog /dev/stderr` (global scope, last-wins
+  over the base default) + `CustomLog /dev/stdout combined` (in the vhost) + `LogLevel
+  ${APACHE_LOG_LEVEL}`. `APACHE_LOG_LEVEL` is a Dockerfile `ENV` (default `warn`) because
+  httpd's `${VAR}` expansion has **no** shell-style `:-default` (unlike PHP/nginx-run) -
+  same as `${SERVER_TIMEOUT}`/`${SERVER_ROOT}`. The distro-default file logs are neutralized
+  in the Dockerfile: Debian `a2disconf other-vhosts-access-log` (its `CustomLog`
+  *accumulates*, so disabling it prevents a file + double-log); Alpine sed rewrites
+  `httpd.conf`'s `ErrorLog`/`CustomLog` to the std streams. The `/var/log/apache2` chown was
+  dropped (nothing writes there now).
+- **Caddy (`frankenphp`):** inherits the base image's Caddy config (no Caddyfile in this
+  repo). Caddy's runtime/error logs go to stderr by default; HTTP **access** logging is off
+  by default (Caddy's own default). Documented as opt-in via appending `log` to
+  `CADDY_SERVER_EXTRA_DIRECTIVES` (JSON to stderr). PHP app errors still reach stderr via
+  the shared php.ini. No config change here (avoids fragile edits + healthz-request noise).
+- **dind:** dockerd logs to stderr (base image default); not touched.
+
+Goss (per the repo's `env-*` pattern): the five php.ini error knobs get `ini_get` tests in
+all three web `goss.yaml` (identical block); the three FPM knobs get `php-fpm -tt` stderr
+tests in the two fpm files. Gotcha - the web-server log settings can't be re-rendered inline
+in a goss `exec` (nginx renders `/run/nginx.conf` once at start; Apache parses env once), so
+those tests assert the **rendered/shipped config** (`nginx-error-log-level` greps
+`/run/nginx.conf`; `apache-logs-to-std-streams` greps `/etc/apache2/fpm-vhost.conf` for
+`/dev/stdout`+`/dev/stderr`) rather than an env override - same limitation as the existing
+`nginx-fastcgi-read-timeout` test.
+
 ## Health checks
 
 Every image ships a Docker `HEALTHCHECK` (`--interval=30s --timeout=5s --retries=3`).

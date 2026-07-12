@@ -114,6 +114,56 @@ supports the same `${VAR:-default}` expansion, so the pool is tunable at runtime
 In `dynamic` mode php-fpm requires `min_spare ≤ start_servers ≤ max_spare`, so
 raise `PHP_FPM_PM_MAX_SPARE_SERVERS` if you raise `PHP_FPM_PM_START_SERVERS`.
 
+## Logging
+
+All images write their logs to the container's **stdout/stderr**, so `docker logs`
+(and your orchestrator's log pipeline) shows everything - no log files inside the
+container, nothing to mount or rotate.
+
+| Source | Destination |
+|--------|-------------|
+| PHP engine errors (all web images) | stderr |
+| php-fpm master + worker output (`fpm-nginx`, `fpm-apache`) | stderr (base image default; workers folded in via `catch_workers_output`) |
+| php-fpm access log | stderr |
+| nginx access / error (`fpm-nginx`) | stdout / stderr |
+| Apache access / error (`fpm-apache`) | stdout / stderr |
+| Caddy runtime / error (`frankenphp`) | stderr |
+| dockerd (`dind`) | stderr (base image default) |
+
+PHP error logging is env-overridable like the rest of `common/php.ini`
+(`docker run -e PHP_DISPLAY_ERRORS=On ...`):
+
+| Env var | Directive | Default |
+|---------|-----------|---------|
+| `PHP_LOG_ERRORS` | `log_errors` | `On` |
+| `PHP_ERROR_LOG` | `error_log` | `/proc/self/fd/2` (stderr) |
+| `PHP_DISPLAY_ERRORS` | `display_errors` | `Off` |
+| `PHP_DISPLAY_STARTUP_ERRORS` | `display_startup_errors` | `Off` |
+| `PHP_ERROR_REPORTING` | `error_reporting` | `E_ALL` |
+
+`display_errors` is **Off** by default so errors are never sent to the HTTP response
+(they still go to stderr); turn it `On` only for local debugging.
+
+php-fpm logging (fpm images), overriding the base image's stderr defaults:
+
+| Env var | Directive | Default |
+|---------|-----------|---------|
+| `PHP_FPM_LOG_LEVEL` | `log_level` | `notice` |
+| `PHP_FPM_CATCH_WORKERS_OUTPUT` | `catch_workers_output` | `yes` |
+| `PHP_FPM_ACCESS_LOG` | `access.log` | `/proc/self/fd/2` (set `/dev/null` to silence) |
+
+Web-server log verbosity:
+
+| Env var | Image | Directive | Default |
+|---------|-------|-----------|---------|
+| `NGINX_ERROR_LOG_LEVEL` | `fpm-nginx` | nginx `error_log` level | `warn` |
+| `APACHE_LOG_LEVEL` | `fpm-apache` | Apache `LogLevel` | `warn` |
+
+`frankenphp`: Caddy sends its runtime/error logs to stderr; HTTP **access** logging is
+off by default (Caddy's own default). Enable it by appending a `log` directive via
+`CADDY_SERVER_EXTRA_DIRECTIVES` (emits JSON to stderr) - remember to also re-add
+`respond /healthz 200` if you override that env var.
+
 ## Building locally
 
 ```sh

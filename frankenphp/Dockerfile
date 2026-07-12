@@ -24,7 +24,11 @@ RUN case "$(helper detect-os)" in \
  && helper install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1 \
  && helper remove-build-deps
 
-# Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
+# Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini),
+# and PHP error logging goes to stderr (log_errors/error_log knobs) so app errors reach
+# docker logs. Caddy's own runtime/error logs already go to stderr by default; HTTP
+# access logging is off by default (Caddy's default) - enable it by appending a `log`
+# directive via CADDY_SERVER_EXTRA_DIRECTIVES (emits JSON to stderr). See the Logging docs.
 COPY common/php.ini ${PHP_INI_DIR}/conf.d/zz-common.ini
 
 # Secure by default: run unprivileged as www-data. SERVER_NAME=:8080 makes

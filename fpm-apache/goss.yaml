@@ -28,6 +28,15 @@ command:
   healthcheck:
     exec: healthcheck
     exit-status: 0
+  # Apache logs to the container's std streams (docker logs), not to files under
+  # /var/log/apache2. The vhost ships ErrorLog /dev/stderr + CustomLog /dev/stdout;
+  # the base per-distro file logs are disabled/redirected in the Dockerfile.
+  apache-logs-to-std-streams:
+    exec: grep -hE '^\s*(ErrorLog|CustomLog)' /etc/apache2/fpm-vhost.conf
+    exit-status: 0
+    stdout:
+      - "/dev/stderr"
+      - "/dev/stdout"
   # --- one test per env var: set it inline; php/php-fpm re-parse config each run.
   # These also prove the shared config is loaded (e.g. max_children=40 comes from
   # our env-driven common/php-fpm.conf; the base image would show its hardcoded 5)
@@ -88,6 +97,29 @@ command:
     exec: env PHP_REALPATH_CACHE_TTL=600 php -r 'echo ini_get("realpath_cache_ttl");'
     exit-status: 0
     stdout: ["600"]
+  # --- Error-logging knobs (common/php.ini): errors go to stderr, display_errors off by
+  # default. Set inline, asserted via ini_get. error_reporting is set to a fixed number
+  # (not E_ALL, whose numeric value is PHP-version-specific). ---
+  env-php-log-errors:
+    exec: env PHP_LOG_ERRORS=Off php -r 'echo ini_get("log_errors");'
+    exit-status: 0
+    stdout: ["Off"]
+  env-php-error-log:
+    exec: env PHP_ERROR_LOG=/tmp/php_errors.log php -r 'echo ini_get("error_log");'
+    exit-status: 0
+    stdout: ["/tmp/php_errors.log"]
+  env-php-display-errors:
+    exec: env PHP_DISPLAY_ERRORS=On php -r 'echo ini_get("display_errors");'
+    exit-status: 0
+    stdout: ["On"]
+  env-php-display-startup-errors:
+    exec: env PHP_DISPLAY_STARTUP_ERRORS=On php -r 'echo ini_get("display_startup_errors");'
+    exit-status: 0
+    stdout: ["On"]
+  env-php-error-reporting:
+    exec: env PHP_ERROR_REPORTING=0 php -r 'echo ini_get("error_reporting");'
+    exit-status: 0
+    stdout: ["0"]
   env-php-fpm-pm:
     exec: env PHP_FPM_PM=static php-fpm -tt
     exit-status: 0
@@ -112,6 +144,20 @@ command:
     exec: env PHP_FPM_PM_MAX_REQUESTS=500 php-fpm -tt
     exit-status: 0
     stderr: ["pm.max_requests = 500"]
+  # FPM logging knobs (common/php-fpm.conf): the base image already routes FPM to stderr;
+  # these prove our overrides load. php-fpm -tt dumps the effective config to stderr.
+  env-php-fpm-log-level:
+    exec: env PHP_FPM_LOG_LEVEL=debug php-fpm -tt
+    exit-status: 0
+    stderr: ["log_level = DEBUG"]   # php-fpm's config dump upper-cases the level
+  env-php-fpm-catch-workers-output:
+    exec: env PHP_FPM_CATCH_WORKERS_OUTPUT=no php-fpm -tt
+    exit-status: 0
+    stderr: ["catch_workers_output = no"]
+  env-php-fpm-access-log:
+    exec: env PHP_FPM_ACCESS_LOG=/tmp/fpm-access.log php-fpm -tt
+    exit-status: 0
+    stderr: ["access.log = /tmp/fpm-access.log"]
 http:
   # Default HEALTHCHECK target: php-fpm ping (no app code runs), 200 + "pong".
   http://localhost:8080/healthz:

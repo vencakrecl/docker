@@ -2,9 +2,10 @@
 # shellcheck shell=sh
 exec 2>&1
 # nginx cannot expand env vars in its config, so render the template into /run
-# (writable by www-data) and point nginx at it. Only our ${SERVER_ROOT} and
-# ${FASTCGI_READ_TIMEOUT} placeholders are substituted; nginx's own $uri/$document_root
-# are left intact. SERVER_TIMEOUT (an image ENV, default 30) is nginx's fastcgi read
+# (writable by www-data) and point nginx at it. Only our ${SERVER_ROOT},
+# ${FASTCGI_READ_TIMEOUT} and ${NGINX_ERROR_LOG_LEVEL} placeholders are substituted;
+# nginx's own $uri/$document_root are left intact. NGINX_ERROR_LOG_LEVEL (default warn)
+# sets error_log verbosity. SERVER_TIMEOUT (an image ENV, default 30) is nginx's fastcgi read
 # timeout, so nginx doesn't 504 before PHP finishes - raise it for long requests.
 # Must be a positive integer of seconds: nginx reads 0 as "time out immediately", so a
 # 0 (or non-numeric) value is a misconfiguration, not "unlimited".
@@ -15,5 +16,6 @@ case "$SERVER_TIMEOUT" in
 esac
 sed -e "s#\${SERVER_ROOT}#${SERVER_ROOT}#g" \
     -e "s#\${FASTCGI_READ_TIMEOUT}#${SERVER_TIMEOUT}#g" \
+    -e "s#\${NGINX_ERROR_LOG_LEVEL}#${NGINX_ERROR_LOG_LEVEL:-warn}#g" \
     /etc/nginx/nginx.conf.template > /run/nginx.conf
 exec nginx -c /run/nginx.conf -g "daemon off;"

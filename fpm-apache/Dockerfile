@@ -40,6 +40,9 @@ ENV SERVER_ROOT=/var/www/html
 # ProxyTimeout so Apache doesn't 504 before PHP finishes. Overridable at runtime; raise
 # it for long requests (PHP's own max_execution_time is an app/framework concern).
 ENV SERVER_TIMEOUT=30
+# Apache LogLevel; httpd expands ${APACHE_LOG_LEVEL} in vhost.conf (its ${VAR} form has
+# no shell-style default, so the default is set here). Overridable at runtime.
+ENV APACHE_LOG_LEVEL=warn
 
 # Server user (baked at build time). Unlike SERVER_ROOT this is not a runtime knob:
 # USER and the chown below are fixed at build and the container runs non-root, so it
@@ -64,6 +67,9 @@ RUN set -eux; \
     if command -v a2enmod >/dev/null 2>&1; then \
         a2enmod proxy proxy_fcgi rewrite setenvif; \
         a2dissite 000-default 2>/dev/null || true; \
+        # Disable the default per-vhost file access log (writes to /var/log/apache2);
+        # our vhost.conf logs to stdout instead. The main ErrorLog is overridden there too.
+        a2disconf other-vhosts-access-log 2>/dev/null || true; \
         sed -ri 's,^Listen 80$,Listen 8080,' /etc/apache2/ports.conf; \
         echo "IncludeOptional /etc/apache2/fpm-vhost.conf" >> /etc/apache2/apache2.conf; \
     else \
@@ -75,6 +81,8 @@ RUN set -eux; \
             -e 's,^Listen 80$,Listen 8080,' \
             -e 's,^User apache$,User ${SERVER_USER},' \
             -e 's,^Group apache$,Group ${SERVER_USER},' \
+            -e 's,^([[:space:]]*)ErrorLog[[:space:]].*,\1ErrorLog /dev/stderr,' \
+            -e 's,^([[:space:]]*)CustomLog[[:space:]].*,\1CustomLog /dev/stdout combined,' \
             /etc/apache2/httpd.conf; \
         echo "Include /etc/apache2/fpm-vhost.conf" >> /etc/apache2/httpd.conf; \
     fi
@@ -95,9 +103,10 @@ COPY common/index.php ${SERVER_ROOT}/index.php
 # Set to / for an end-to-end check that serves index.php, or your app's route (e.g. /up).
 ENV HEALTHCHECK_PATH=/healthz
 
-# Secure by default: run unprivileged as $SERVER_USER. Make Apache's runtime and log
-# dirs writable by it (port 8080 needs no privilege).
-RUN chown -R "$SERVER_USER:$SERVER_USER" /run /var/log/apache2 /var/www/html 2>/dev/null || true
+# Secure by default: run unprivileged as $SERVER_USER. Make Apache's runtime dir
+# writable by it (port 8080 needs no privilege). Logs go to stdout/stderr (see
+# vhost.conf), so no log dir needs to be writable.
+RUN chown -R "$SERVER_USER:$SERVER_USER" /run /var/www/html 2>/dev/null || true
 
 USER ${SERVER_USER}
 WORKDIR /var/www/html
