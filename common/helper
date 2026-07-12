@@ -176,9 +176,11 @@ install_composer() {
 }
 
 install_pie() {
-    _fetch "https://github.com/php/pie/releases/download/${PIE_VERSION}/pie.phar" /usr/local/bin/pie
-    _verify_sha256 /usr/local/bin/pie "$PIE_SHA256"
-    chmod +x /usr/local/bin/pie
+    tmp="$(mktemp -d)"
+    _fetch "https://github.com/php/pie/releases/download/${PIE_VERSION}/pie.phar" "$tmp/pie.phar"
+    _verify_sha256 "$tmp/pie.phar" "$PIE_SHA256"
+    install -m 0755 "$tmp/pie.phar" /usr/local/bin/pie
+    rm -rf "$tmp"
 }
 
 install_castor() {
@@ -187,10 +189,12 @@ install_castor() {
         amd64) want="$CASTOR_SHA256_AMD64" ;;
         arm64) want="$CASTOR_SHA256_ARM64" ;;
     esac
+    tmp="$(mktemp -d)"
     _fetch "https://github.com/jolicode/castor/releases/download/v${CASTOR_VERSION}/castor.linux-${arch}" \
-        /usr/local/bin/castor
-    _verify_sha256 /usr/local/bin/castor "$want"
-    chmod +x /usr/local/bin/castor
+        "$tmp/castor"
+    _verify_sha256 "$tmp/castor" "$want"
+    install -m 0755 "$tmp/castor" /usr/local/bin/castor
+    rm -rf "$tmp"
 }
 
 # --- cloud CLIs (dind; Alpine only) ------------------------------------------
