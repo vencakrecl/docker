@@ -11,9 +11,9 @@
 ARG BASE_IMAGE=fpm-nginx:8.4-alpine
 FROM ${BASE_IMAGE}
 
-# Extensions install as root; the base image otherwise runs unprivileged as www-data.
-# gd links libpng (build + runtime), so install its dev package - named per distro via a
-# detect-os case, the same pattern the image Dockerfiles use.
+# Extensions install as root; the base image otherwise runs unprivileged as $SERVER_USER
+# (www-data by default). gd links libpng (build + runtime), so install its dev package -
+# named per distro via a detect-os case, the same pattern the image Dockerfiles use.
 USER root
 RUN case "$(helper detect-os)" in \
       alpine) runtime_deps="libpng-dev" ;; \
@@ -21,4 +21,4 @@ RUN case "$(helper detect-os)" in \
     esac \
  && helper install-runtime-deps $runtime_deps \
  && helper install-docker-ext gd
-USER www-data
+USER ${SERVER_USER}
