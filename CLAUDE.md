@@ -310,24 +310,27 @@ the daemon.
   on Linux; Docker Desktop auto-maps). Makefile passes them only when set (so no
   build warning on dind). Default unset = hardened uid 82/33. Runtime alternative:
   `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
-- **PHP extensions (default set + extend):** all three web images take five optional,
-  space-separated build args: `PHP_DOCKER_EXTENSIONS` (`docker-php-ext-install`, bundled),
-  `PHP_PECL_EXTENSIONS` (PECL, `name-version`), `PHP_PIE_EXTENSIONS` (PIE, composer
-  `vendor/name:constraint`), `PHP_RUNTIME_PACKAGES` (extra runtime system libs, kept), and
-  `PHP_BUILD_PACKAGES` (build-only deps, removed after the build).
-  - **`fpm-nginx` ships a default extension set** (two per install manager, all needing
-    no extra system libs): `mysqli bcmath` (docker), `redis apcu` (PECL),
-    `php-ds/ext-ds open-telemetry/ext-opentelemetry` (PIE). Override any ARG at build to
-    change them. (`fpm-apache`/`frankenphp` still default empty - `fpm-nginx` is the one
-    being shaped this way for now.) A `default-extensions` goss test asserts they load.
-  - **To *extend* the defaults, derive - don't rebuild.** Build-args only work when
-    building the image from the repo; a downstream `FROM fpm-nginx:<tag>` user adds
-    extensions with the baked-in `helper` (`USER root; helper install-packages <libs>;
-    helper install-docker-ext/​install-pecl-ext/​install-pie-ext <ext>; USER www-data`).
-    `examples/wordpress/Dockerfile` shows this: it extends the defaults with one more,
+- **PHP extensions - two styles, currently split by image:**
+  - **`fpm-nginx`** installs a **default extension set** with **explicit `helper` calls**
+    in its Dockerfile (no build-args, readable) - two per install manager, all needing no
+    extra system libs: `install-docker-ext mysqli bcmath`, `install-pecl-ext redis-6.3.0
+    apcu-5.1.28`, `install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1`,
+    bracketed by `install-build-deps $PHPIZE_DEPS unzip` / `remove-build-deps`. A
+    `default-extensions` goss test asserts they load. Its `dev` stage does the same for
+    xdebug/pcov/spx, with a `detect-os` `case` picking the per-distro build headers
+    (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`) and a kept `unzip` for composer.
+  - **`fpm-apache`/`frankenphp`** still use the older **build-arg** path: five ARGs
+    (`PHP_DOCKER_EXTENSIONS`/`PHP_PECL_EXTENSIONS`/`PHP_PIE_EXTENSIONS` +
+    `PHP_RUNTIME_PACKAGES` kept / `PHP_BUILD_PACKAGES` removed) read by `helper
+    install-extensions`, defaulting empty. (fpm-nginx is being reshaped first; the others
+    may follow.)
+  - **To *extend* either, derive - don't rebuild from the repo.** Build-args / Dockerfile
+    edits only apply when building the image from this repo; a downstream `FROM
+    <image>:<tag>` user adds extensions with the baked-in `helper` (`USER root; helper
+    install-packages <libs>; helper install-docker-ext/-pecl-ext/-pie-ext <ext>; USER
+    www-data`). `examples/wordpress/Dockerfile` extends fpm-nginx's defaults with one more,
     `gd` (+`libpng-dev`). PIE's ecosystem is thin - most `pecl/<name>` bridges 404 on
-    Packagist; only a few (`pecl/pcov`, `pecl/zip`) and native `vendor/ext-*` packages
-    are installable.
+    Packagist; only a few (`pecl/pcov`, `pecl/zip`) and native `vendor/ext-*` install.
   - Bundled extensions (`docker-php-ext-install`) need no caller-provided toolchain:
     `docker-php-ext-install` installs its build deps transiently and purges them itself
     (verified - the Alpine build log ends with `Purging musl-dev / libgcc`; `gcc` is
