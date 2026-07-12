@@ -37,6 +37,7 @@ define build
 	$(BUILDX) \
 	  --build-arg BASE_IMAGE=$(2) \
 	  $(if $(4),--target $(4)) \
+	  $(if $(CLOUD),--build-arg CLOUD=$(CLOUD)) \
 	  $(if $(USER_ID),--build-arg USER_ID=$(USER_ID)) \
 	  $(if $(GROUP_ID),--build-arg GROUP_ID=$(GROUP_ID)) \
 	  -t $(REGISTRY)$(1):$(3) \
@@ -107,6 +108,20 @@ frankenphp-dev-alpine:
 dind:
 	$(call build,dind,docker:$(DOCKER_VERSION)-dind-rootless,$(DOCKER_VERSION)-rootless)
 
+# Cloud CLI variants: same dind image + one cloud CLI, selected by the CLOUD build
+# arg (see dind/Dockerfile). Tag suffix names the trait, like -rootless does:
+# <docker>-rootless-<cloud>. Alpine only (the dind base is Alpine).
+.PHONY: dind-aws dind-gcloud dind-azure
+dind-aws: CLOUD = aws
+dind-aws:
+	$(call build,dind,docker:$(DOCKER_VERSION)-dind-rootless,$(DOCKER_VERSION)-rootless-aws)
+dind-gcloud: CLOUD = gcloud
+dind-gcloud:
+	$(call build,dind,docker:$(DOCKER_VERSION)-dind-rootless,$(DOCKER_VERSION)-rootless-gcloud)
+dind-azure: CLOUD = azure
+dind-azure:
+	$(call build,dind,docker:$(DOCKER_VERSION)-dind-rootless,$(DOCKER_VERSION)-rootless-azure)
+
 # --- tests -------------------------------------------------------------------
 # Runtime tests: each image is started and probed with goss (via dgoss) using the
 # <image>/goss.yaml in its directory. Tests the Alpine variant.
@@ -134,6 +149,20 @@ test-frankenphp: frankenphp-alpine
 test-dind: GOSS_SLEEP = 15   # rootless dind (rootlesskit + network) needs longer to be ready
 test-dind: dind
 	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless
+
+# Cloud-variant tests: the base dind checks plus a "<cli> --version" probe, via each
+# image's goss.<cloud>.yaml (GOSS_FILE) instead of the prod goss.yaml.
+.PHONY: test-dind-aws test-dind-gcloud test-dind-azure
+test-dind-aws test-dind-gcloud test-dind-azure: GOSS_SLEEP = 15
+test-dind-aws: export GOSS_FILE = goss.aws.yaml
+test-dind-aws: dind-aws
+	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless-aws
+test-dind-gcloud: export GOSS_FILE = goss.gcloud.yaml
+test-dind-gcloud: dind-gcloud
+	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless-gcloud
+test-dind-azure: export GOSS_FILE = goss.azure.yaml
+test-dind-azure: dind-azure
+	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless-azure
 
 # Dev-variant smoke tests: assert the dev toolbox (composer, castor, xdebug, pcov, spx)
 # is present, using each image's <image>/goss.dev.yaml (GOSS_FILE) instead of its

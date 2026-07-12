@@ -27,7 +27,9 @@ See `docs/tags.md` for the authoritative scheme. Summary:
 - Tag format is `[<version>-]<os>` (`<os>` = `debian` | `alpine`):
   - PHP images (`fpm-nginx`, `fpm-apache`, `frankenphp`): `<php-version>-<os>`, e.g. `8.3-alpine`.
   - `dind`: `<docker-version>-rootless` (single variant; no OS suffix - it is
-    meaningless for dind, and `-rootless` names the meaningful trait).
+    meaningless for dind, and `-rootless` names the meaningful trait). Optional
+    cloud-CLI variants add a `-<cloud>` suffix: `<docker-version>-rootless-<aws|gcloud|azure>`
+    (selected by the `CLOUD` build arg; see the Cloud CLI variants section).
   - Dev variant of the web images: `<php-version>-<os>-dev` (e.g. `8.4-alpine-dev`);
     `-dev` names the trait (adds the dev toolbox), same as `-rootless` for dind. See
     the Dev image variant section.
@@ -75,6 +77,11 @@ See `docs/tags.md` for the authoritative scheme. Summary:
 - `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
 - `install-pie` -> PIE phar to `/usr/local/bin/pie` (needs PHP at runtime)
 - `install-castor` -> Castor static binary to `/usr/local/bin/castor`
+- `install-aws-cli` / `install-gcloud` / `install-azure-cli` -> cloud CLIs for the
+  `dind` variants (Alpine only, since the dind base is Alpine): aws via apk community;
+  gcloud from the versioned tarball with system musl python3 (bundled glibc python
+  dropped) + bash/libc6-compat; azure via pip into a `/opt/azure-cli` venv (`az` on
+  PATH), toolchain installed/removed as a build-deps group.
 Each installs + enables the extension(s); every arg is an extension name (multiple
 allowed):
 
@@ -92,7 +99,8 @@ Pinning an extension version (the token is passed straight through):
   the PHP source, so their version tracks the base image; pin `PHP_VERSION` instead.
 
 Tool versions are pinned at the top of `common/helper` (`S6_OVERLAY_VERSION`,
-`COMPOSER_VERSION`, `PIE_VERSION`, `CASTOR_VERSION`) and overridable via env.
+`COMPOSER_VERSION`, `PIE_VERSION`, `CASTOR_VERSION`, `GCLOUD_VERSION`,
+`AZURE_CLI_VERSION`; AWS CLI is unpinned - it tracks the Alpine repo) and overridable via env.
 Keep them pinned - do not switch to "latest" URLs (reproducibility).
 - Where the distro layout genuinely diverges (e.g. the Apache config tree, or
   per-distro packages/headers), the Dockerfile branches at build time on `helper
@@ -163,8 +171,10 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   below). `IMAGE`/`PHP`/`OS`/`VARIANT`/`MAKE_TARGET`/`TAG`/`REF` are job-level `env`
   (matrix context is available there). Native arch builds (no QEMU) so goss can run
   the container. `fail-fast: false`; goss pinned via `GOSS_VERSION`.
-- `build-dind-image` job: per-arch, `make test-dind` (single rootless variant, no
-  PHP version), then the same Push step.
+- `build-dind-image` job: matrix of `arch` x `suffix` (`""` | `-aws` | `-gcloud` |
+  `-azure`), running `make test-dind$SUFFIX` (no PHP version), then the same Push step
+  (per-arch tag `<docker>-rootless$SUFFIX-<arch>`). `release-dind-image` carries the
+  same `suffix` matrix so each variant gets its multi-arch manifest.
 - Push is the **third step** of build-php-image / build-dind-image (on main only,
   gated by `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`; the
   jobs carry `packages: write` + a GHCR login step). It `docker tag`+`push`es the
@@ -478,6 +488,18 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
   variant (no debian/alpine split). Base entrypoint/CMD/USER inherited; run the
   container with `--privileged`. The rootless daemon socket is
   `/run/user/1000/docker.sock`, so a CLI needs `DOCKER_HOST` pointed there.
+  - **Cloud CLI variants (`CLOUD` build arg):** `dind/Dockerfile` takes an optional
+    `ARG CLOUD` (empty = plain dind; `aws` | `gcloud` | `azure`), branching in one
+    `RUN` (as `root`, then back to `USER rootless`) to `helper install-aws-cli` /
+    `install-gcloud` / `install-azure-cli`. Unknown values fail the build. Makefile
+    targets `dind-aws` / `dind-gcloud` / `dind-azure` set `CLOUD` and tag
+    `<docker>-rootless-<cloud>`; the base `build` macro passes `--build-arg CLOUD` when
+    set (so plain `make dind` is unaffected). Tests: `make test-dind-<cloud>` runs the
+    per-cloud `dind/goss.<cloud>.yaml` (via `GOSS_FILE`) = the base dind checks plus a
+    `<cli> --version` probe. `ENV CLOUDSDK_PYTHON=/usr/bin/python3` is set
+    unconditionally (harmless when gcloud is absent) so gcloud uses the musl python.
+    Verified: all three build + run as uid 1000, and the rootless daemon still starts
+    with a CLI layered on.
 
 ## Dev image variant
 

@@ -107,7 +107,9 @@ jobs:
           docker push "$REF"
 
   build-dind-image:
-    name: dind (${{ matrix.arch }})
+    # suffix "" is plain rootless dind; -aws/-gcloud/-azure add a cloud CLI (see
+    # dind/Dockerfile CLOUD arg). make target / test target / tag all carry the suffix.
+    name: dind${{ matrix.suffix }} (${{ matrix.arch }})
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -115,10 +117,12 @@ jobs:
     env:
       REF: ghcr.io/${{ github.repository_owner }}/dind
       ARCH: ${{ matrix.arch }}
+      SUFFIX: ${{ matrix.suffix }}
     strategy:
       fail-fast: false
       matrix:
         arch: [amd64, arm64]
+        suffix: ["", "-aws", "-gcloud", "-azure"]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -137,7 +141,7 @@ jobs:
       - name: Allow unprivileged user namespaces (rootless dind)
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Build + test
-        run: make test-dind
+        run: make "test-dind${SUFFIX}"
       - name: Log in to GHCR
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
@@ -148,8 +152,9 @@ jobs:
       - name: Push (this arch)
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
-          ref="$REF:${DOCKER_VERSION}-rootless-${ARCH}"
-          docker tag "dind:${DOCKER_VERSION}-rootless" "$ref"
+          tag="${DOCKER_VERSION}-rootless${SUFFIX}"
+          ref="$REF:${tag}-${ARCH}"
+          docker tag "dind:${tag}" "$ref"
           docker push "$ref"
 
   # Assemble the per-arch tags pushed by build-php-image into one multi-arch tag.
@@ -182,11 +187,15 @@ jobs:
   release-dind-image:
     needs: build-dind-image
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    name: release dind
+    name: release dind${{ matrix.suffix }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        suffix: ["", "-aws", "-gcloud", "-azure"]
     steps:
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -197,6 +206,7 @@ jobs:
       - name: Create multi-arch manifest
         env:
           REPO: ghcr.io/${{ github.repository_owner }}/dind
+          SUFFIX: ${{ matrix.suffix }}
         run: |
-          base="$REPO:${DOCKER_VERSION}-rootless"
+          base="$REPO:${DOCKER_VERSION}-rootless${SUFFIX}"
           docker buildx imagetools create -t "$base" "$base-amd64" "$base-arm64"

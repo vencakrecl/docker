@@ -33,9 +33,11 @@ Dockerfile can `COPY common/helper`.
 | `install-pie-ext <ext...>` | install + enable PHP extension(s) via PIE |
 | `install-pecl-ext <ext...>` | install + enable PHP extension(s) via PECL |
 | `install-docker-ext <ext...>` | install + enable PHP extension(s) via `docker-php-ext-install` |
+| `install-aws-cli` / `install-gcloud` / `install-azure-cli` | cloud CLI for the `dind` variants (Alpine only) |
 
 Tool versions are pinned at the top of `common/helper` (`S6_OVERLAY_VERSION`,
-`COMPOSER_VERSION`, `PIE_VERSION`, `CASTOR_VERSION`). Edit them there to change a
+`COMPOSER_VERSION`, `PIE_VERSION`, `CASTOR_VERSION`, `GCLOUD_VERSION`,
+`AZURE_CLI_VERSION`; AWS CLI tracks the Alpine repo). Edit them there to change a
 version; they read from the environment, so a Dockerfile can also declare a matching
 `ARG` and pass it through if you want per-build overrides.
 
@@ -45,6 +47,8 @@ version; they read from the environment, so a Dockerfile can also declare a matc
 make build              # all images, both OS variants
 make fpm-nginx          # one image, both variants
 make fpm-nginx-alpine   # one image, one variant
+make dind               # plain rootless dind
+make dind-aws           # dind + AWS CLI (also dind-gcloud, dind-azure)
 make help               # list targets
 ```
 

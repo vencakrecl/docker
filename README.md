@@ -12,7 +12,7 @@ ships in **Debian** and **Alpine** variants.
 | `fpm-nginx`   | PHP-FPM behind nginx      |
 | `fpm-apache`  | PHP-FPM with Apache       |
 | `frankenphp`  | FrankenPHP                |
-| `dind`        | Docker-in-Docker (rootless) |
+| `dind`        | Docker-in-Docker (rootless); optional `-aws` / `-gcloud` / `-azure` cloud-CLI variants |
 
 **Secure by default:** the web images (`fpm-nginx`, `fpm-apache`, `frankenphp`)
 run unprivileged as `www-data` and listen on port **8080** (a non-privileged

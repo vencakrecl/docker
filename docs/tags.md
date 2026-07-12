@@ -15,6 +15,7 @@ Tag format is `[<version>-]<os>`, where `<os>` is `debian` or `alpine`.
 | `fpm-nginx`, `fpm-apache`, `frankenphp` | `<php-version>-<os>`    | `8.3-debian`, `8.3-alpine`, `8.4-debian` |
 | web images, **dev variant**             | `<php-version>-<os>-dev` | `8.4-alpine-dev`, `8.4-debian-dev` (adds composer, castor, xdebug, pcov, spx) |
 | `dind`                                  | `<docker-version>-rootless` | `29-rootless` (single variant; OS tag is meaningless here) |
+| `dind`, **cloud variant**               | `<docker-version>-rootless-<cloud>` | `29-rootless-aws`, `29-rootless-gcloud`, `29-rootless-azure` (adds that cloud's CLI) |
 
 ## Architecture
 

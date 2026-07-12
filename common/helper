@@ -19,6 +19,9 @@
 #   install-composer                install Composer to /usr/local/bin/composer
 #   install-pie                     install PIE (PHP ext installer) to /usr/local/bin/pie
 #   install-castor                  install Castor (task runner) to /usr/local/bin/castor
+#   install-aws-cli                 install AWS CLI (apk aws-cli; Alpine only)
+#   install-gcloud                  install Google Cloud CLI to /usr/local/google-cloud-sdk (Alpine only)
+#   install-azure-cli               install Azure CLI to /opt/azure-cli venv, `az` on PATH (Alpine only)
 #   install-pie-ext <ext...>                 install PHP extension(s) via PIE (installs
 #                                            PIE itself first if not already present)
 #   install-pie-skip-enable-ext <ext...>     ... without enabling
@@ -32,6 +35,8 @@ S6_OVERLAY_VERSION="${S6_OVERLAY_VERSION:-3.2.3.0}"
 COMPOSER_VERSION="${COMPOSER_VERSION:-2.10.2}"
 PIE_VERSION="${PIE_VERSION:-1.4.8}"
 CASTOR_VERSION="${CASTOR_VERSION:-1.6.1}"
+GCLOUD_VERSION="${GCLOUD_VERSION:-575.0.1}"
+AZURE_CLI_VERSION="${AZURE_CLI_VERSION:-2.88.0}"
 
 set -eu
 
@@ -160,6 +165,51 @@ install_castor() {
     chmod +x /usr/local/bin/castor
 }
 
+# --- cloud CLIs (dind; Alpine only) ------------------------------------------
+# The dind base is docker:*-dind-rootless (Alpine). These three are Alpine-only
+# by design - the only image using them is dind - so they call apk/pip directly
+# rather than routing through the Debian branch.
+
+# install_aws_cli - AWS CLI v2 from the Alpine community repo (musl build).
+# Version tracks the base image's Alpine release (not individually pinned, like
+# the repo's other apk runtime deps); AWS does not ship a musl v2 installer.
+install_aws_cli() {
+    install_packages aws-cli
+}
+
+# install_gcloud - Google Cloud CLI from the versioned tarball. gcloud is a Python
+# app and the tarball bundles a *glibc* interpreter that can't run on Alpine/musl,
+# so we install the system python3 (+ bash the wrappers need, libc6-compat) and drop
+# the bundled interpreter - the approach google/cloud-sdk's own Alpine image uses.
+install_gcloud() {
+    case "$(detect_arch)" in
+        amd64) gcarch=x86_64 ;;
+        arm64) gcarch=arm ;;
+    esac
+    install_packages python3 bash libc6-compat
+    tmp="$(mktemp -d)"
+    _fetch "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-${GCLOUD_VERSION}-linux-${gcarch}.tar.gz" \
+        "$tmp/gcloud.tar.gz"
+    tar -C /usr/local -xzf "$tmp/gcloud.tar.gz"
+    rm -rf "$tmp" /usr/local/google-cloud-sdk/platform/bundledpythonunix
+    for b in gcloud gsutil bq; do
+        ln -s /usr/local/google-cloud-sdk/bin/"$b" /usr/local/bin/"$b"
+    done
+}
+
+# install_azure_cli - Azure CLI via pip into an isolated venv (Microsoft ships no
+# Alpine package; pip is the documented path). Builds in a removable toolchain group
+# so gcc/cargo/headers leave no trace; the venv (with `az` symlinked onto PATH) stays.
+install_azure_cli() {
+    install_packages python3
+    install_build_deps gcc musl-dev python3-dev libffi-dev openssl-dev linux-headers make cargo
+    python3 -m venv /opt/azure-cli
+    /opt/azure-cli/bin/pip install --no-cache-dir --upgrade pip
+    /opt/azure-cli/bin/pip install --no-cache-dir "azure-cli==${AZURE_CLI_VERSION}"
+    ln -s /opt/azure-cli/bin/az /usr/local/bin/az
+    remove_build_deps
+}
+
 # For each tool there are two functions: the plain one enables the extension(s),
 # the *_skip_enable_* variant installs without enabling. Every argument is an
 # extension name, so multiple extensions can be passed at once. The PIE variants
@@ -285,6 +335,9 @@ case "$cmd" in
     install-composer) install_composer ;;
     install-pie) install_pie ;;
     install-castor) install_castor ;;
+    install-aws-cli) install_aws_cli ;;
+    install-gcloud) install_gcloud ;;
+    install-azure-cli) install_azure_cli ;;
     install-pie-ext) install_pie_ext "$@" ;;
     install-pie-skip-enable-ext) install_pie_skip_enable_ext "$@" ;;
     install-pecl-ext) install_pecl_ext "$@" ;;
