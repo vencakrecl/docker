@@ -11,10 +11,13 @@ starts the image and checks the `<image>/goss.yaml` in that image's directory.
 ```sh
 make test           # runtime-test every image (Alpine)
 make test-fpm-nginx # one image
+make test-dind      # plain rootless dind (--privileged)
+make test-dind-aws  # dind + AWS CLI (also test-dind-gcloud, test-dind-azure)
 ```
 
 Requires `goss` + `dgoss` on `PATH`. Each image's checks live in its
-`<image>/goss.yaml`.
+`<image>/goss.yaml`; the `dind` cloud variants use `<image>/goss.<cloud>.yaml`
+(selected via `GOSS_FILE`), which add a `<cli> --version` probe to the base checks.
 
 ## CI
 
@@ -50,4 +53,5 @@ Notes:
   separate `apache2-proxy` package, which the Dockerfile installs, so `proxy_fcgi`
   loads and Apache proxies `.php` to php-fpm just like Debian.
 - `dind` is a thin layer over `docker:*-dind-rootless` (Alpine only; there is no
-  Debian/rootless upstream, so dind is a single variant).
+  Debian/rootless upstream, so dind is a single variant). Optional cloud CLI variants
+  (`-aws`, `-gcloud`, `-azure`) add one provider's CLI via the `CLOUD` build arg.

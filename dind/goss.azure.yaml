@@ -1,0 +1,24 @@
+# Runtime checks for the dind -azure variant: the base dind checks (see goss.yaml)
+# plus an Azure CLI probe. Run with `dgoss run --privileged`
+# (GOSS_FILE=goss.azure.yaml). NB: goss renders this file through Go templating
+# first, so avoid brace syntax here (az prints JSON at runtime, which is fine - only
+# the yaml file itself must be brace-free).
+process:
+  dockerd:
+    running: true
+command:
+  runs-as-non-root:
+    exec: id -u
+    exit-status: 0
+    stdout:
+      - "!/^0$/"
+  docker-server:
+    exec: sh -c 'DOCKER_HOST=unix:///run/user/1000/docker.sock docker version'
+    exit-status: 0
+    stdout:
+      - Server
+  azure-cli:
+    exec: az version
+    exit-status: 0
+    stdout:
+      - azure-cli
