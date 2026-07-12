@@ -1,0 +1,20 @@
+# Dependabot config. Only github-actions is tracked here: every image's
+# Dockerfile references its base via `FROM ${BASE_IMAGE}` (the Makefile owns the
+# tag), and Dependabot's docker ecosystem cannot resolve ARG-interpolated FROM
+# lines (dependabot/dependabot-core#2057, #4597, #10190), so a `docker` entry
+# would find nothing. Pinned tool versions in common/helper aren't a tracked
+# ecosystem either. Bump those by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
