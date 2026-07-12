@@ -136,25 +136,25 @@ test-dind: dind
 	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless
 
 # Dev-variant smoke tests: assert the dev toolbox (composer, castor, xdebug, pcov, spx)
-# is present, using the shared common/goss.dev.yaml (GOSS_FILE) instead of an
-# <image>/goss.yaml. Runs the Alpine -dev tag.
+# is present, using each image's <image>/goss.dev.yaml (GOSS_FILE) instead of its
+# prod <image>/goss.yaml. Runs the Alpine -dev tag.
 .PHONY: test-dev
 test-dev: test-dev-fpm-nginx test-dev-fpm-apache test-dev-frankenphp ## Runtime-test the dev variants (Alpine)
 
 .PHONY: test-dev-fpm-nginx
 test-dev-fpm-nginx: export GOSS_FILE = goss.dev.yaml
 test-dev-fpm-nginx: fpm-nginx-dev-alpine
-	cd common && $(DGOSS) $(REGISTRY)fpm-nginx:$(PHP_VERSION)-alpine-dev
+	cd fpm-nginx && $(DGOSS) $(REGISTRY)fpm-nginx:$(PHP_VERSION)-alpine-dev
 
 .PHONY: test-dev-fpm-apache
 test-dev-fpm-apache: export GOSS_FILE = goss.dev.yaml
 test-dev-fpm-apache: fpm-apache-dev-alpine
-	cd common && $(DGOSS) $(REGISTRY)fpm-apache:$(PHP_VERSION)-alpine-dev
+	cd fpm-apache && $(DGOSS) $(REGISTRY)fpm-apache:$(PHP_VERSION)-alpine-dev
 
 .PHONY: test-dev-frankenphp
 test-dev-frankenphp: export GOSS_FILE = goss.dev.yaml
 test-dev-frankenphp: frankenphp-dev-alpine
-	cd common && $(DGOSS) $(REGISTRY)frankenphp:$(PHP_VERSION)-alpine-dev
+	cd frankenphp && $(DGOSS) $(REGISTRY)frankenphp:$(PHP_VERSION)-alpine-dev
 
 .PHONY: help
 help: ## List the available targets

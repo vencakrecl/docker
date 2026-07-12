@@ -74,12 +74,15 @@ Dockerfile can `COPY common/helper`.
 | `install-composer` | Composer (sha256-verified) |
 | `install-pie` | PIE, the PHP extension installer |
 | `install-castor` | Castor task runner (static binary) |
+| `install-build-deps <pkgs...>` / `remove-build-deps` | install the pecl/pie toolchain as a removable group, then drop what was added |
 | `install-pie-ext <ext...>` | install + enable PHP extension(s) via PIE |
 | `install-pecl-ext <ext...>` | install + enable PHP extension(s) via PECL |
 | `install-docker-ext <ext...>` | install + enable PHP extension(s) via `docker-php-ext-install` |
 
-Tool versions are pinned at the top of `common/helper` and overridable via env
-build args, e.g. `--build-arg COMPOSER_VERSION=2.10.2`.
+Tool versions are pinned at the top of `common/helper` (`S6_OVERLAY_VERSION`,
+`COMPOSER_VERSION`, `PIE_VERSION`, `CASTOR_VERSION`). Edit them there to change a
+version; they read from the environment, so a Dockerfile can also declare a matching
+`ARG` and pass it through if you want per-build overrides.
 
 ## PHP configuration
 
@@ -203,9 +206,9 @@ matrix entries run on your host arch - act can't truly cross-build on one machin
 
 Building and runtime-tested (goss): all images.
 
-Known gap:
-- `fpm-apache` on **Alpine** serves `.php` as source - Alpine ships mod_proxy in a
-  separate `apache2-proxy` package that isn't installed, so `proxy_fcgi` doesn't
-  load. Debian apache executes PHP correctly. Fix pending.
+Notes:
+- `fpm-apache` on **Alpine** executes `.php` correctly. Alpine ships mod_proxy in a
+  separate `apache2-proxy` package, which the Dockerfile installs, so `proxy_fcgi`
+  loads and Apache proxies `.php` to php-fpm just like Debian.
 - `dind` is a thin layer over `docker:*-dind-rootless` (Alpine only; there is no
   Debian/rootless upstream, so dind is a single variant).

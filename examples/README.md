@@ -50,11 +50,13 @@ container (no host PHP/Composer needed). Symfony/Laravel/Nette use ports 8081/80
 
 ## Adding PHP extensions (WordPress shows the pattern)
 
-The images ship the stock `php:*-fpm` extension set. When an app needs more, the intended
-way is to **derive from the image** and add them with the baked-in `helper` - no repo
-build context, no build-args, no rebuilding the base from source. **WordPress demonstrates
-this**: `wordpress/Dockerfile` is `FROM fpm-nginx:<tag>` + `helper install-docker-ext
-mysqli gd` (see the root README/CLAUDE.md for the `helper` commands). Build the base first
+The images ship a default extension set (`mysqli bcmath redis apcu ext-ds
+ext-opentelemetry`) on top of the stock `php:*-fpm` extensions. When an app needs more,
+the intended way is to **derive from the image** and add them with the baked-in `helper`
+- no repo build context, no build-args, no rebuilding the base from source. **WordPress
+demonstrates this**: `wordpress/Dockerfile` is `FROM fpm-nginx:<tag>` + `helper
+install-docker-ext gd` (mysqli is already a base default; see the root README/CLAUDE.md
+for the `helper` commands). Build the base first
 (`make fpm-nginx-alpine`), then `docker compose -f examples/wordpress/docker-compose.yml up
 --build`.
 
@@ -63,7 +65,7 @@ mysqli gd` (see the root README/CLAUDE.md for the `helper` commands). Build the 
 | Symfony (skeleton) | none (uses polyfills) | works out of the box |
 | Nette (web-project) | none for the welcome page | |
 | Laravel | usually `pdo_*`, `mbstring` is bundled | fine for the welcome page; a DB app needs `pdo_mysql`/`pdo_pgsql` |
-| WordPress | `mysqli`, `gd` (+ a DB) | added by deriving (see `wordpress/Dockerfile`); a fresh core redirects to the installer until these are present |
+| WordPress | `gd` (+ a DB; `mysqli` is a base default) | `gd` added by deriving (see `wordpress/Dockerfile`); a fresh core redirects to the installer until these are present |
 
 Symfony/Laravel/Nette build the images straight from the repo for a quick smoke test;
 WordPress is the one that shows consuming an image **as a base** and extending it.

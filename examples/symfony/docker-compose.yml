@@ -1,5 +1,5 @@
 # Symfony on all three web images. Install the app first (from the repo root):
-#   make example-symfony
+#   make -C examples symfony
 #   docker compose -f examples/symfony/docker-compose.yml up --build -d
 #   curl localhost:8081/   # fpm-nginx   (8082 fpm-apache, 8083 frankenphp)
 #   docker compose -f examples/symfony/docker-compose.yml down

@@ -68,11 +68,12 @@ jobs:
         run: make "$MAKE_TARGET" PHP_VERSION="$PHP"
       - name: Test (goss)
         run: |
+          cd "$IMAGE"
           if [ "$VARIANT" = dev ]; then
-            # dev images share common/goss.dev.yaml (asserts the toolbox is present)
-            cd common && GOSS_FILE=goss.dev.yaml GOSS_SLEEP=8 dgoss run "$IMAGE:$TAG"
+            # dev variant uses the image's goss.dev.yaml (asserts the toolbox is present)
+            GOSS_FILE=goss.dev.yaml GOSS_SLEEP=8 dgoss run "$IMAGE:$TAG"
           else
-            cd "$IMAGE" && GOSS_SLEEP=8 dgoss run "$IMAGE:$TAG"
+            GOSS_SLEEP=8 dgoss run "$IMAGE:$TAG"
           fi
       # Regression guard for graceful shutdown: `docker stop` must stop the container
       # cleanly, not get SIGKILLed at the timeout. The s6 web images override the

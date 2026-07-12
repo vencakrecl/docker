@@ -91,13 +91,15 @@ FROM base AS dev
 USER root
 COPY common/dev.ini ${PHP_INI_DIR}/conf.d/zz-dev.ini
 # The dev extensions' compile headers differ per distro (xdebug -> linux-headers on
-# Alpine; spx -> zlib), so pick the build-deps list per system. unzip is also installed
-# as a *kept* runtime package, so `composer install` can extract packages at runtime.
+# Alpine; spx -> zlib), so pick the build-deps list per system. libtool (provides
+# libtoolize) is added on both distros - PIE's build step probes for it and warns when
+# absent. unzip is also installed as a *kept* runtime package, so `composer install` can
+# extract packages at runtime.
 RUN helper install-composer \
  && helper install-castor \
  && case "$(helper detect-os)" in \
-      alpine) build_deps="$PHPIZE_DEPS unzip linux-headers zlib-dev" runtime_deps="unzip" ;; \
-      debian) build_deps="$PHPIZE_DEPS unzip zlib1g-dev" runtime_deps="unzip" ;; \
+      alpine) build_deps="$PHPIZE_DEPS unzip libtool linux-headers zlib-dev" runtime_deps="unzip" ;; \
+      debian) build_deps="$PHPIZE_DEPS unzip libtool zlib1g-dev" runtime_deps="unzip" ;; \
     esac \
  && helper install-runtime-deps $runtime_deps \
  && helper install-build-deps $build_deps \

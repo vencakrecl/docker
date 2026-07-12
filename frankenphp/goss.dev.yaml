@@ -1,0 +1,33 @@
+# Smoke test for the `-dev` image variants: the dev toolbox is present and loadable.
+# Run against a <php>-<os>-dev image (see `make test-dev-*`). This is separate from the
+# per-image goss.yaml (which covers the prod runtime) - it only checks the dev tools.
+command:
+  composer:
+    exec: composer --version --no-interaction
+    exit-status: 0
+    stdout: ["Composer"]
+  castor:
+    exec: castor --version
+    exit-status: 0
+  xdebug-loaded:
+    exec: php -m
+    exit-status: 0
+    stdout: ["xdebug"]
+  pcov-loaded:
+    exec: php -m
+    exit-status: 0
+    stdout: ["pcov"]
+  spx-loaded:
+    exec: php -m
+    exit-status: 0
+    stdout: ["SPX"]
+  # xdebug ships OFF by default (zero overhead) ...
+  xdebug-off-by-default:
+    exec: php -r 'echo ini_get("xdebug.mode");'
+    exit-status: 0
+    stdout: ["off"]
+  # ... and is opt-in via XDEBUG_MODE (set inline; php re-parses config each run).
+  env-xdebug-mode:
+    exec: env XDEBUG_MODE=debug php -r 'echo ini_get("xdebug.mode");'
+    exit-status: 0
+    stdout: ["debug"]

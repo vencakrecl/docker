@@ -1,10 +1,11 @@
 # WordPress on fpm-nginx, built by DERIVING from the fpm-nginx image (see ./Dockerfile).
-# The extra extensions (mysqli, gd) are added downstream with the image's baked-in
-# `helper` - not build-args - which is the intended way to extend these images as a base.
+# The extra extension (gd) is added downstream with the image's baked-in `helper` - not
+# build-args - which is the intended way to extend these images as a base (mysqli is
+# already a base default).
 #
 # From the repo root:
 #   make fpm-nginx-alpine                        # build the base image the Dockerfile derives from
-#   make example-wordpress                        # download WP core into wordpress/app
+#   make -C examples wordpress                   # download WP core into wordpress/app
 #   docker compose -f examples/wordpress/docker-compose.yml up --build -d
 #   curl -L localhost:8081/
 #   docker compose -f examples/wordpress/docker-compose.yml down
@@ -18,7 +19,7 @@ name: example-wordpress
 
 services:
   fpm-nginx:
-    # Derives from fpm-nginx and adds mysqli + gd (see ./Dockerfile). The build context
+    # Derives from fpm-nginx and adds gd (see ./Dockerfile). The build context
     # is this folder - `helper` is already in the base image, nothing to COPY from the repo.
     build:
       context: .

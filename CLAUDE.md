@@ -145,7 +145,7 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   arch (`dpkg --print-architecture`), then separate steps: **Build**
   (`make $MAKE_TARGET PHP_VERSION=<php>`, where `MAKE_TARGET`/`TAG` carry the `-dev`
   suffix for the dev variant), **Test** (`dgoss run <image>:$TAG` - the dev variant runs
-  `common/goss.dev.yaml` via `GOSS_FILE`), **Graceful stop**, and on main **Push** (see
+  the image's own `<image>/goss.dev.yaml` via `GOSS_FILE`), **Graceful stop**, and on main **Push** (see
   below). `IMAGE`/`PHP`/`OS`/`VARIANT`/`MAKE_TARGET`/`TAG`/`REF` are job-level `env`
   (matrix context is available there). Native arch builds (no QEMU) so goss can run
   the container. `fail-fast: false`; goss pinned via `GOSS_VERSION`.
@@ -397,9 +397,11 @@ and **spx** extensions. Not applied to `dind` (not a PHP image).
   natively). `pcov.enabled` defaults on (idle until a runner collects; don't drive
   coverage with both pcov and xdebug). spx is dormant until activated; its HTTP UI is
   gated by `spx.http_key` + `spx.http_ip_whitelist` (keep tight before exposing).
-- **Tests:** `make test-dev[-<image>]` runs the shared `common/goss.dev.yaml` (via
-  `GOSS_FILE`) against the Alpine `-dev` tag - asserts the 5 tools are present, xdebug
-  loads but defaults `off`, and `XDEBUG_MODE` overrides it. (Not yet wired into CI.)
+- **Tests:** `make test-dev[-<image>]` runs each image's own `<image>/goss.dev.yaml` (via
+  `GOSS_FILE`, selecting it over the prod `<image>/goss.yaml`) against the Alpine `-dev`
+  tag - asserts the 5 tools are present, xdebug loads but defaults `off`, and
+  `XDEBUG_MODE` overrides it. The three files are currently identical (a dev-toolbox
+  smoke test); keep them in sync, or diverge per image as needed.
 
 ## Status
 
