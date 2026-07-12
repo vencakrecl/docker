@@ -23,7 +23,8 @@
 #   install-composer                install Composer to /usr/local/bin/composer
 #   install-pie                     install PIE (PHP ext installer) to /usr/local/bin/pie
 #   install-castor                  install Castor (task runner) to /usr/local/bin/castor
-#   install-pie-ext <ext...>                 install PHP extension(s) via PIE
+#   install-pie-ext <ext...>                 install PHP extension(s) via PIE (installs
+#                                            PIE itself first if not already present)
 #   install-pie-skip-enable-ext <ext...>     ... without enabling
 #   install-pecl-ext <ext...>                install PHP extension(s) via PECL
 #   install-pecl-skip-enable-ext <ext...>    ... without enabling
@@ -162,11 +163,13 @@ install_castor() {
 
 # For each tool there are two functions: the plain one enables the extension(s),
 # the *_skip_enable_* variant installs without enabling. Every argument is an
-# extension name, so multiple extensions can be passed at once.
+# extension name, so multiple extensions can be passed at once. The PIE variants
+# install the PIE binary first if it is not already present, so callers need not.
 
 # install_pie_ext <ext...> - install via PIE (composer-style names), enabled
 install_pie_ext() {
     [ "$#" -gt 0 ] || { echo "usage: helper install-pie-ext <ext...>" >&2; return 2; }
+    command -v pie >/dev/null 2>&1 || install_pie
     for ext in "$@"; do
         pie install "$ext"
     done
@@ -175,6 +178,7 @@ install_pie_ext() {
 # install_pie_skip_enable_ext <ext...> - install via PIE without enabling
 install_pie_skip_enable_ext() {
     [ "$#" -gt 0 ] || { echo "usage: helper install-pie-skip-enable-ext <ext...>" >&2; return 2; }
+    command -v pie >/dev/null 2>&1 || install_pie
     for ext in "$@"; do
         pie install --skip-enable-extension "$ext"
     done
@@ -273,7 +277,7 @@ install_extensions() {
         # unlike PHP_RUNTIME_PACKAGES, which are kept for runtime libs.
         install_build_deps ${PHP_BUILD_PACKAGES:-}
         if [ -n "${PHP_PECL_EXTENSIONS:-}" ]; then install_pecl_ext $PHP_PECL_EXTENSIONS; fi
-        if [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then install_pie; install_pie_ext $PHP_PIE_EXTENSIONS; fi
+        if [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then install_pie_ext $PHP_PIE_EXTENSIONS; fi
         remove_build_deps
     fi
 }

@@ -314,8 +314,9 @@ the daemon.
   - **`fpm-nginx`** installs a **default extension set** with **explicit `helper` calls**
     in its Dockerfile (no build-args, readable) - two per install manager, all needing no
     extra system libs: `install-docker-ext mysqli bcmath`, `install-pecl-ext redis-6.3.0
-    apcu-5.1.28`, `install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1`,
-    bracketed by `install-build-deps $PHPIZE_DEPS unzip` / `remove-build-deps`. A
+    apcu-5.1.28`, `install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1`
+    (`install-pie-ext` installs the PIE binary itself if needed), bracketed by
+    `install-build-deps $PHPIZE_DEPS unzip` / `remove-build-deps`. A
     `default-extensions` goss test asserts they load. Its `dev` stage does the same for
     xdebug/pcov/spx, with a `detect-os` `case` picking the per-distro build headers
     (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`) and a kept `unzip` for composer.

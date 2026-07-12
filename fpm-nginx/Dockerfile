@@ -19,7 +19,6 @@ RUN helper install-packages nginx \
 RUN helper install-build-deps $PHPIZE_DEPS unzip \
  && helper install-docker-ext mysqli bcmath \
  && helper install-pecl-ext redis-6.3.0 apcu-5.1.28 \
- && helper install-pie \
  && helper install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1 \
  && helper remove-build-deps
 
@@ -98,7 +97,6 @@ RUN case "$(helper detect-os)" in \
  && helper install-castor \
  && helper install-packages unzip \
  && helper install-build-deps $build_deps \
- && helper install-pie \
  && helper install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22 \
  && helper remove-build-deps
 USER ${SERVER_USER}
