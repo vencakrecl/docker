@@ -10,6 +10,12 @@ command:
     exec: php -r 'echo 40 + 2;'
     exit-status: 0
     stdout: ["42"]
+  # Default extension set baked in at build (two per install manager: docker-php-ext,
+  # PECL, PIE). Downstream apps extend these by deriving + `helper` (see examples/wordpress).
+  default-extensions:
+    exec: php -m
+    exit-status: 0
+    stdout: ["mysqli", "bcmath", "redis", "apcu", "ds", "opentelemetry"]
   # The container HEALTHCHECK probe: GETs $HEALTHCHECK_PATH and exits 0 on 2xx,
   # exercising FrankenPHP -> PHP end-to-end.
   healthcheck:

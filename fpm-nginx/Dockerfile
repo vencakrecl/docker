@@ -89,13 +89,13 @@ COPY common/dev.ini ${PHP_INI_DIR}/conf.d/zz-dev.ini
 # The dev extensions' compile headers differ per distro (xdebug -> linux-headers on
 # Alpine; spx -> zlib), so pick the build-deps list per system. unzip is also installed
 # as a *kept* runtime package, so `composer install` can extract packages at runtime.
-RUN case "$(helper detect-os)" in \
-      alpine) build_deps="$PHPIZE_DEPS unzip linux-headers zlib-dev" ;; \
-      debian) build_deps="$PHPIZE_DEPS unzip zlib1g-dev" ;; \
-    esac \
- && helper install-composer \
+RUN helper install-composer \
  && helper install-castor \
- && helper install-runtime-deps unzip \
+ && case "$(helper detect-os)" in \
+      alpine) build_deps="$PHPIZE_DEPS unzip linux-headers zlib-dev" runtime_deps="unzip" ;; \
+      debian) build_deps="$PHPIZE_DEPS unzip zlib1g-dev" runtime_deps="unzip" ;; \
+    esac \
+ && helper install-runtime-deps $runtime_deps \
  && helper install-build-deps $build_deps \
  && helper install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22 \
  && helper remove-build-deps

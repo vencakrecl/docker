@@ -9,21 +9,16 @@ COPY common/helper /usr/local/bin/helper
 # Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
 COPY common/healthcheck /usr/local/bin/healthcheck
 
-# Optionally build extra PHP extensions at build time (all optional, space-separated):
-#   PHP_DOCKER_EXTENSIONS  docker-php-ext-install names (bundled), e.g. "mysqli gd"
-#   PHP_PECL_EXTENSIONS    PECL packages, e.g. "redis"
-#   PHP_PIE_EXTENSIONS     PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
-#   PHP_RUNTIME_PACKAGES   extra runtime system libs (e.g. "libpng-dev"), KEPT
-#   PHP_BUILD_PACKAGES     build-only deps (e.g. headers "linux-headers"), REMOVED after build
-# pecl/pie compile from source, so the toolchain ($PHPIZE_DEPS, an image ENV) + unzip
-# are prepended to PHP_BUILD_PACKAGES for the build and dropped again afterwards.
-ARG PHP_RUNTIME_PACKAGES=""
-ARG PHP_DOCKER_EXTENSIONS=""
-ARG PHP_PECL_EXTENSIONS=""
-ARG PHP_PIE_EXTENSIONS=""
-ARG PHP_BUILD_PACKAGES=""
-RUN export PHP_BUILD_PACKAGES="$PHPIZE_DEPS unzip${PHP_BUILD_PACKAGES:+ $PHP_BUILD_PACKAGES}" \
- && helper install-extensions
+# Default PHP extension set - two per install manager (docker-php-ext, PECL, PIE), all
+# needing no extra system libs. Installed explicitly with `helper`: the pecl/pie build
+# toolchain ($PHPIZE_DEPS + unzip, an image ENV + a package) goes in as a removable group
+# and is dropped afterwards. To *extend* this set, derive from this image and call
+# `helper` in your own Dockerfile (see examples/wordpress) - no build-args, no repo context.
+RUN helper install-build-deps $PHPIZE_DEPS unzip \
+ && helper install-docker-ext mysqli bcmath \
+ && helper install-pecl-ext redis-6.3.0 apcu-5.1.28 \
+ && helper install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1 \
+ && helper remove-build-deps
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini ${PHP_INI_DIR}/conf.d/zz-common.ini
@@ -74,30 +69,25 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["healthcheck"]
 
 # --- dev variant (build with --target dev; tag <php>-<os>-dev) ------------------------
-# Layers the dev toolbox (composer, castor, xdebug, pcov, spx) onto the lean image.
-# xdebug is installed but off by default (XDEBUG_MODE) - see common/dev.ini.
+# Layers the dev toolbox onto the lean image: composer + castor (binaries) and the
+# xdebug/pcov/spx extensions (via PIE). xdebug is installed but off by default
+# (XDEBUG_MODE) - see common/dev.ini.
 FROM base AS dev
 USER root
-# Dev tooling: composer + castor (binaries), then the dev extensions (xdebug/pcov/spx)
-# via the same install-extensions flow as the base image. The extension ARGs are
-# overridable at build time; the default is the standard dev set (PIE names, pinned).
-ARG PHP_DOCKER_EXTENSIONS=""
-ARG PHP_PECL_EXTENSIONS=""
-ARG PHP_PIE_EXTENSIONS="xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22"
 COPY common/dev.ini ${PHP_INI_DIR}/conf.d/zz-dev.ini
-# Per-distro system packages for the dev extensions, by lifetime:
-#   PHP_BUILD_PACKAGES    build deps, dropped after the build - the toolchain ($PHPIZE_DEPS)
-#                         + unzip (pecl/pie), plus headers (xdebug needs linux-headers on
-#                         Alpine, spx needs zlib headers on both).
-#   PHP_RUNTIME_PACKAGES  kept - unzip so runtime `composer install` can extract packages
-#                         (Debian's base ships none; Alpine's busybox unzip is limited).
+# The dev extensions' compile headers differ per distro (xdebug -> linux-headers on
+# Alpine; spx -> zlib), so pick the build-deps list per system. unzip is also installed
+# as a *kept* runtime package, so `composer install` can extract packages at runtime.
 RUN helper install-composer \
  && helper install-castor \
  && case "$(helper detect-os)" in \
-      alpine) export PHP_BUILD_PACKAGES="$PHPIZE_DEPS unzip linux-headers zlib-dev" PHP_RUNTIME_PACKAGES="unzip" ;; \
-      debian) export PHP_BUILD_PACKAGES="$PHPIZE_DEPS unzip zlib1g-dev"             PHP_RUNTIME_PACKAGES="unzip" ;; \
+      alpine) build_deps="$PHPIZE_DEPS unzip linux-headers zlib-dev" runtime_deps="unzip" ;; \
+      debian) build_deps="$PHPIZE_DEPS unzip zlib1g-dev" runtime_deps="unzip" ;; \
     esac \
- && helper install-extensions
+ && helper install-runtime-deps $runtime_deps \
+ && helper install-build-deps $build_deps \
+ && helper install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22 \
+ && helper remove-build-deps
 USER ${SERVER_USER}
 
 # --- default (prod) stage: identical to `base`, kept last so a plain `docker build`
