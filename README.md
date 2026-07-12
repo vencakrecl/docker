@@ -36,3 +36,7 @@ make fpm-nginx-alpine
 - [Configuration](docs/configuration.md) - PHP (`php.ini` / php-fpm) and logging env knobs
 - [Building & local development](docs/building.md) - Makefile, the `helper` toolbox, host-user matching, Docker Compose
 - [Testing & CI](docs/testing.md) - dgoss, the GitHub Actions matrix, status
+
+## License
+
+[MIT](LICENSE)
