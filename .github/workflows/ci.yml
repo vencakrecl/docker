@@ -34,7 +34,7 @@ jobs:
   # tested image under a per-arch tag; release-php-image assembles the multi-arch tag.
   build-php-image:
     needs: matrix
-    name: ${{ matrix.target.image }} ${{ matrix.target.php }}-${{ matrix.os }} (${{ matrix.arch }})
+    name: ${{ matrix.target.image }} ${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }} (${{ matrix.arch }})
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -43,12 +43,17 @@ jobs:
       IMAGE: ${{ matrix.target.image }}
       PHP: ${{ matrix.target.php }}
       OS: ${{ matrix.os }}
-      REF: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}-${{ matrix.arch }}
+      VARIANT: ${{ matrix.variant }}
+      # make target + local tag: fpm-nginx-alpine / 8.5-alpine (prod), -dev forms for dev.
+      MAKE_TARGET: ${{ matrix.target.image }}${{ matrix.variant == 'dev' && '-dev' || '' }}-${{ matrix.os }}
+      TAG: ${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}
+      REF: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
         arch: [amd64, arm64]
         os: [alpine, debian]
+        variant: [prod, dev]
         target: ${{ fromJSON(needs.matrix.outputs.targets) }}
     steps:
       - uses: actions/checkout@v4
@@ -60,16 +65,22 @@ jobs:
           sudo curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o /usr/local/bin/dgoss
           sudo chmod +x /usr/local/bin/goss /usr/local/bin/dgoss
       - name: Build
-        run: make "$IMAGE-$OS" PHP_VERSION="$PHP"
+        run: make "$MAKE_TARGET" PHP_VERSION="$PHP"
       - name: Test (goss)
-        run: cd "$IMAGE" && GOSS_SLEEP=8 dgoss run "$IMAGE:$PHP-$OS"
+        run: |
+          if [ "$VARIANT" = dev ]; then
+            # dev images share common/goss.dev.yaml (asserts the toolbox is present)
+            cd common && GOSS_FILE=goss.dev.yaml GOSS_SLEEP=8 dgoss run "$IMAGE:$TAG"
+          else
+            cd "$IMAGE" && GOSS_SLEEP=8 dgoss run "$IMAGE:$TAG"
+          fi
       # Regression guard for graceful shutdown: `docker stop` must stop the container
       # cleanly, not get SIGKILLed at the timeout. The s6 web images override the
       # base's STOPSIGNAL (SIGQUIT->SIGTERM) so s6's shutdown handler fires; frankenphp
       # (no s6) stops on the default SIGTERM. Fail on exit 137 or a timeout-length stop.
       - name: Graceful stop
         run: |
-          cid=$(docker run -d "$IMAGE:$PHP-$OS")
+          cid=$(docker run -d "$IMAGE:$TAG")
           sleep 8
           start=$(date +%s)
           docker stop -t 15 "$cid"
@@ -78,7 +89,7 @@ jobs:
           docker rm -f "$cid" >/dev/null || true
           echo "stop: elapsed=${elapsed}s exit=${code}"
           if [ "$code" = "137" ] || [ "$elapsed" -ge 12 ]; then
-            echo "::error::$IMAGE:$PHP-$OS did not stop gracefully (exit=$code, ${elapsed}s)"
+            echo "::error::$IMAGE:$TAG did not stop gracefully (exit=$code, ${elapsed}s)"
             exit 1
           fi
       - name: Log in to GHCR
@@ -91,7 +102,7 @@ jobs:
       - name: Push (this arch)
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
-          docker tag "$IMAGE:$PHP-$OS" "$REF"
+          docker tag "$IMAGE:$TAG" "$REF"
           docker push "$REF"
 
   build-dind-image:
@@ -144,7 +155,7 @@ jobs:
   release-php-image:
     needs: [matrix, build-php-image]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    name: release ${{ matrix.target.image }} ${{ matrix.target.php }}-${{ matrix.os }}
+    name: release ${{ matrix.target.image }} ${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -153,6 +164,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [alpine, debian]
+        variant: [prod, dev]
         target: ${{ fromJSON(needs.matrix.outputs.targets) }}
     steps:
       - uses: docker/setup-buildx-action@v3
@@ -163,7 +175,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create multi-arch manifest
         env:
-          BASE: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}
+          BASE: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.image }}:${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }}
         run: docker buildx imagetools create -t "$BASE" "$BASE-amd64" "$BASE-arm64"
 
   release-dind-image:

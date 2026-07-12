@@ -140,11 +140,13 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   `<<DELIM` format). `build-php-image` and `release-php-image` both consume it via
   `${{ fromJSON(needs.matrix.outputs.targets) }}` - edit versions in one place.
 - `build-php-image` job: matrix of `arch` (amd64 / arm64) x `os` (alpine / debian) x
-  `target` - one job per variant (targets x 2 arch x 2 os). Each runs on the matching runner
-  (`ubuntu-latest` / `ubuntu-24.04-arm`), installs goss/dgoss for that arch
-  (`dpkg --print-architecture`), then separate steps: **Build**
-  (`make <image>-<os> PHP_VERSION=<php>`), **Test** (`dgoss run <image>:<php>-<os>`),
-  and on main **Push** (see below). `IMAGE`/`PHP`/`OS`/`REF` are job-level `env`
+  **`variant` (prod / dev)** x `target` (targets x 2 x 2 x 2 jobs). Each runs on the
+  matching runner (`ubuntu-latest` / `ubuntu-24.04-arm`), installs goss/dgoss for that
+  arch (`dpkg --print-architecture`), then separate steps: **Build**
+  (`make $MAKE_TARGET PHP_VERSION=<php>`, where `MAKE_TARGET`/`TAG` carry the `-dev`
+  suffix for the dev variant), **Test** (`dgoss run <image>:$TAG` - the dev variant runs
+  `common/goss.dev.yaml` via `GOSS_FILE`), **Graceful stop**, and on main **Push** (see
+  below). `IMAGE`/`PHP`/`OS`/`VARIANT`/`MAKE_TARGET`/`TAG`/`REF` are job-level `env`
   (matrix context is available there). Native arch builds (no QEMU) so goss can run
   the container. `fail-fast: false`; goss pinned via `GOSS_VERSION`.
 - `build-dind-image` job: per-arch, `make test-dind` (single rootless variant, no
@@ -157,8 +159,10 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
 - `release-php-image` / `release-dind-image` jobs (`needs: build-php-image` /
   `build-dind-image`, `if: main`): assemble the per-arch tags into the final
   multi-arch tag with `docker buildx imagetools create -t <tag> <tag>-amd64
-  <tag>-arm64`. Downside: the `-amd64`/`-arm64` tags linger in the registry (the
-  merged `<tag>` is the clean multi-arch one).
+  <tag>-arm64`. `release-php-image` carries the same `os` x `variant` x `target` matrix,
+  so both `<php>-<os>` and `<php>-<os>-dev` get their multi-arch manifest. Downside: the
+  `-amd64`/`-arm64` tags linger in the registry (the merged `<tag>` is the clean
+  multi-arch one).
 - The s6 `run` scripts carry `# shellcheck shell=sh` (for the `with-contenv`
   shebang) - kept even though lint was dropped, in case it's re-added.
 - Run the workflow locally with `act` (nektos/act); `.actrc` maps the runner
