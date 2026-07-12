@@ -11,19 +11,22 @@ COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-packages nginx \
  && helper install-s6-overlay
 
-# Optionally build extra PHP extensions at build time (all optional, space-separated):
-#   PHP_DOCKER_EXTENSIONS  docker-php-ext-install names (bundled), e.g. "mysqli gd"
-#   PHP_PECL_EXTENSIONS    PECL packages, e.g. "redis"
-#   PHP_PIE_EXTENSIONS     PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
-#   PHP_RUNTIME_PACKAGES   extra runtime system libs (e.g. "libpng-dev"), KEPT
-#   PHP_BUILD_PACKAGES     build-only deps (e.g. headers "linux-headers"), REMOVED after build
+# Default PHP extension set (two per install manager), baked in at build. Override any
+# ARG to change the defaults; to *extend* them (the recommended way), derive from this
+# image and call `helper` in your own Dockerfile - see examples/wordpress. These defaults
+# need no extra system libs; extensions that do take them via PHP_RUNTIME_PACKAGES.
+#   PHP_DOCKER_EXTENSIONS  docker-php-ext-install names (bundled in PHP source)
+#   PHP_PECL_EXTENSIONS    PECL packages (name-version)
+#   PHP_PIE_EXTENSIONS     PIE packages (composer vendor/name:constraint)
+#   PHP_RUNTIME_PACKAGES   extra runtime system libs some extensions need, KEPT
+#   PHP_BUILD_PACKAGES     extra build-only deps (headers), REMOVED after build
 # pecl/pie compile from source, so the toolchain ($PHPIZE_DEPS, an image ENV) + unzip
 # are prepended to PHP_BUILD_PACKAGES for the build and dropped again afterwards.
 ARG PHP_RUNTIME_PACKAGES=""
-ARG PHP_DOCKER_EXTENSIONS=""
-ARG PHP_PECL_EXTENSIONS=""
-ARG PHP_PIE_EXTENSIONS=""
 ARG PHP_BUILD_PACKAGES=""
+ARG PHP_DOCKER_EXTENSIONS="mysqli bcmath"
+ARG PHP_PECL_EXTENSIONS="redis-6.3.0 apcu-5.1.28"
+ARG PHP_PIE_EXTENSIONS="php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1"
 RUN export PHP_BUILD_PACKAGES="$PHPIZE_DEPS unzip${PHP_BUILD_PACKAGES:+ $PHP_BUILD_PACKAGES}" \
  && helper install-extensions
 
@@ -92,6 +95,8 @@ USER root
 # Dev tooling: composer + castor (binaries), then the dev extensions (xdebug/pcov/spx)
 # via the same install-extensions flow as the base image. The extension ARGs are
 # overridable at build time; the default is the standard dev set (PIE names, pinned).
+ARG PHP_BUILD_PACKAGES=""
+ARG PHP_RUNTIME_PACKAGES=""
 ARG PHP_DOCKER_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS="xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22"
