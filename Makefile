@@ -74,7 +74,7 @@ frankenphp-alpine:
 # Each web image's Dockerfile has a `dev` stage (--target dev) that layers the dev
 # toolbox onto the lean image: composer, castor, and the xdebug/pcov/spx extensions.
 # The extension list + its distro-specific build headers are defined in the Dockerfile's
-# `dev` stage (installed via install-extensions; xdebug off by default, see
+# `dev` stage (explicit `helper install-*-ext` calls; xdebug off by default, see
 # common/dev.ini), so these targets just select the stage. Tag: <php>-<os>-dev.
 .PHONY: dev
 dev: fpm-nginx-dev fpm-apache-dev frankenphp-dev ## Build the dev variants of the web images (both OS)
