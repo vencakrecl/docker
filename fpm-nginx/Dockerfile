@@ -16,7 +16,11 @@ RUN helper install-runtime-deps nginx \
 # toolchain ($PHPIZE_DEPS + unzip, an image ENV + a package) goes in as a removable group
 # and is dropped afterwards. To *extend* this set, derive from this image and call
 # `helper` in your own Dockerfile (see examples/wordpress) - no build-args, no repo context.
-RUN helper install-build-deps $PHPIZE_DEPS unzip \
+RUN case "$(helper detect-os)" in \
+      alpine) build_deps="$PHPIZE_DEPS unzip" ;; \
+      debian) build_deps="$PHPIZE_DEPS unzip" ;; \
+    esac \
+ && helper install-build-deps $build_deps \
  && helper install-docker-ext mysqli bcmath \
  && helper install-pecl-ext redis-6.3.0 apcu-5.1.28 \
  && helper install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1 \
