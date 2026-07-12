@@ -15,6 +15,9 @@ permissions:
 
 env:
   GOSS_VERSION: v0.4.9
+  # goss is verified against its release .sha256 sidecar; dgoss is a raw script with no
+  # sidecar, so its digest is pinned here (bump alongside GOSS_VERSION).
+  DGOSS_SHA256: 7ee35d6ccbe1440eb2a08984a43e8b3742f2e849abdc0d7384ac08de55682d7c
   DOCKER_VERSION: "29" # dind tag (matches the Makefile default)
 
 jobs:
@@ -67,9 +70,16 @@ jobs:
       - name: Install goss + dgoss
         run: |
           arch=$(dpkg --print-architecture)
-          sudo curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o /usr/local/bin/goss
-          sudo curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o /usr/local/bin/dgoss
-          sudo chmod +x /usr/local/bin/goss /usr/local/bin/dgoss
+          tmp=$(mktemp -d)
+          # goss: verify against the release's published .sha256 sidecar.
+          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o "$tmp/goss"
+          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}.sha256" -o "$tmp/goss.sha256"
+          sh common/helper verify-sha256 "$tmp/goss" "$(cut -d' ' -f1 "$tmp/goss.sha256")"
+          # dgoss: a raw script with no sidecar, so verify against the pinned DGOSS_SHA256.
+          curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o "$tmp/dgoss"
+          sh common/helper verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
+          sudo install -m 0755 "$tmp/goss" /usr/local/bin/goss
+          sudo install -m 0755 "$tmp/dgoss" /usr/local/bin/dgoss
       - name: Build
         run: make "$MAKE_TARGET" PHP_VERSION="$PHP"
       - name: Test (goss)
@@ -147,9 +157,16 @@ jobs:
       - name: Install goss + dgoss
         run: |
           arch=$(dpkg --print-architecture)
-          sudo curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o /usr/local/bin/goss
-          sudo curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o /usr/local/bin/dgoss
-          sudo chmod +x /usr/local/bin/goss /usr/local/bin/dgoss
+          tmp=$(mktemp -d)
+          # goss: verify against the release's published .sha256 sidecar.
+          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o "$tmp/goss"
+          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}.sha256" -o "$tmp/goss.sha256"
+          sh common/helper verify-sha256 "$tmp/goss" "$(cut -d' ' -f1 "$tmp/goss.sha256")"
+          # dgoss: a raw script with no sidecar, so verify against the pinned DGOSS_SHA256.
+          curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o "$tmp/dgoss"
+          sh common/helper verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
+          sudo install -m 0755 "$tmp/goss" /usr/local/bin/goss
+          sudo install -m 0755 "$tmp/dgoss" /usr/local/bin/dgoss
       # ubuntu-24.04 runners set kernel.apparmor_restrict_unprivileged_userns=1,
       # which blocks rootlesskit's user-namespace creation (fork/exec /proc/self/exe:
       # operation not permitted) even inside a --privileged container - the restriction

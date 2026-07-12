@@ -102,6 +102,16 @@ Tool versions are pinned at the top of `common/helper` (`S6_OVERLAY_VERSION`,
 `COMPOSER_VERSION`, `PIE_VERSION`, `CASTOR_VERSION`, `GCLOUD_VERSION`,
 `AZURE_CLI_VERSION`; AWS CLI is unpinned - it tracks the Alpine repo) and overridable via env.
 Keep them pinned - do not switch to "latest" URLs (reproducibility).
+
+Downloaded artifacts are **sha256-verified** before use (via the `_verify_sha256` helper).
+s6-overlay and composer verify against their published `.sha256`/`.sha256sum` sidecars, so
+they need no pinned digest. pie, castor and gcloud have no upstream sidecar, so their digests
+are pinned next to the versions (`PIE_SHA256`, `CASTOR_SHA256_<ARCH>`, `GCLOUD_SHA256_<ARCH>`,
+env-overridable) - overriding a `*_VERSION` without the matching `*_SHA256` fails the build by
+design, so bump both together. Azure CLI installs via pip and is version-pinned only (hash-pinning
+every transitive dep is impractical). AWS CLI is an apk package (verified by apk). The verifier is
+exposed as `helper verify-sha256 <file> <sha256>`; CI reuses it to check its goss binary (against
+the release `.sha256` sidecar) and the sidecar-less `dgoss` script (pinned via `DGOSS_SHA256`).
 - Where the distro layout genuinely diverges (e.g. the Apache config tree, or
   per-distro packages/headers), the Dockerfile branches at build time on `helper
   detect-os` (`debian`|`alpine`) rather than templating - e.g. fpm-apache's `case`
