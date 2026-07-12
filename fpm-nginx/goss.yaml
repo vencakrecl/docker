@@ -27,6 +27,15 @@ command:
   healthcheck:
     exec: healthcheck
     exit-status: 0
+  # Compression: brotli preferred (gzip fallback). Write a >min_length compressible asset
+  # and assert the negotiated Content-Encoding is br - proves the brotli module loaded and
+  # the config negotiates (a base-image change dropping the module would fail here).
+  compression-brotli:
+    exec: |
+      head -c 1024 /dev/zero | tr '\0' x > ${SERVER_ROOT}/__goss_compress.css
+      curl -s -D - -o /dev/null -H 'Accept-Encoding: br, gzip' http://127.0.0.1:8080/__goss_compress.css
+    exit-status: 0
+    stdout: ["Content-Encoding: br"]
   # fastcgi_read_timeout is rendered from SERVER_TIMEOUT (default 30) so nginx doesn't
   # 504 before PHP's limit.
   nginx-fastcgi-read-timeout:

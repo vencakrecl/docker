@@ -8,7 +8,7 @@ FROM ${BASE_IMAGE} AS base
 COPY common/helper /usr/local/bin/helper
 COPY common/healthcheck /usr/local/bin/healthcheck
 RUN helper install-runtime-deps apache2 \
- && if [ "$(helper detect-os)" = alpine ]; then helper install-runtime-deps apache2-proxy; fi \
+ && if [ "$(helper detect-os)" = alpine ]; then helper install-runtime-deps apache2-proxy apache2-brotli; fi \
  && helper install-s6-overlay
 ###< RUNTIME DEPS
 
@@ -33,29 +33,25 @@ ARG SERVER_USER=www-data
 ENV SERVER_USER=${SERVER_USER}
 
 COPY fpm-apache/vhost.conf /etc/apache2/fpm-vhost.conf
+COPY fpm-apache/alpine.conf /etc/apache2/conf.d/zz-fpm.conf
+COPY fpm-apache/debian.conf /etc/apache2/conf-enabled/zz-fpm.conf
+COPY fpm-apache/ports.conf /etc/apache2/ports.conf
 COPY fpm-apache/s6-rc.d /etc/s6-overlay/s6-rc.d
 
+# Debian: enable modules + drop stock sites (port/vhost come from the COPYed files above).
+# Alpine: alpine.conf carries the config, but httpd.conf hardcodes `Listen 80` + a file
+# `CustomLog` inline - both accumulate, so no include overrides them; comment them out.
 RUN set -eux; \
-    if command -v a2enmod >/dev/null 2>&1; then \
-        a2enmod proxy proxy_fcgi rewrite setenvif; \
+    case "$(helper detect-os)" in \
+      debian) \
+        a2enmod proxy proxy_fcgi rewrite setenvif deflate brotli filter; \
         a2dissite 000-default 2>/dev/null || true; \
         a2disconf other-vhosts-access-log 2>/dev/null || true; \
-        sed -ri 's,^Listen 80$,Listen 8080,' /etc/apache2/ports.conf; \
-        echo "IncludeOptional /etc/apache2/fpm-vhost.conf" >> /etc/apache2/apache2.conf; \
-    else \
-        sed -ri \
-            -e 's,^#(LoadModule proxy_module .*),\1,' \
-            -e 's,^#(LoadModule proxy_fcgi_module .*),\1,' \
-            -e 's,^#(LoadModule rewrite_module .*),\1,' \
-            -e 's,^#(LoadModule setenvif_module .*),\1,' \
-            -e 's,^Listen 80$,Listen 8080,' \
-            -e 's,^User apache$,User ${SERVER_USER},' \
-            -e 's,^Group apache$,Group ${SERVER_USER},' \
-            -e 's,^([[:space:]]*)ErrorLog[[:space:]].*,\1ErrorLog /dev/stderr,' \
-            -e 's,^([[:space:]]*)CustomLog[[:space:]].*,\1CustomLog /dev/stdout combined,' \
-            /etc/apache2/httpd.conf; \
-        echo "Include /etc/apache2/fpm-vhost.conf" >> /etc/apache2/httpd.conf; \
-    fi
+        ;; \
+      alpine) \
+        sed -ri -e 's,^Listen 80$,#&,' -e 's,^[[:space:]]*CustomLog[[:space:]],#&,' /etc/apache2/httpd.conf; \
+        ;; \
+    esac
 
 RUN rm -f ${SERVER_ROOT}/index.html
 COPY common/index.php ${SERVER_ROOT}/index.php

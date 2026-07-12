@@ -21,6 +21,14 @@ command:
   healthcheck:
     exec: healthcheck
     exit-status: 0
+  # Compression: Caddy's `encode zstd br gzip` (Caddyfile), brotli preferred (gzip fallback).
+  # Write a compressible asset over Caddy's 512B minimum_length and assert Content-Encoding br.
+  compression-brotli:
+    exec: |
+      head -c 1024 /dev/zero | tr '\0' x > ${SERVER_ROOT}/__goss_compress.css
+      curl -s -D - -o /dev/null -H 'Accept-Encoding: br, gzip' http://127.0.0.1:8080/__goss_compress.css
+    exit-status: 0
+    stdout: ["Content-Encoding: br"]
   # One test per common/php.ini env knob (set inline; php re-parses config each run).
   # Proves the ${VAR:-default} expansion in our php.ini works. frankenphp embeds PHP
   # (no php-fpm), so there are no PHP_FPM_* knobs.

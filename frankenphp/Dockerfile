@@ -25,10 +25,14 @@ RUN case "$(helper detect-os)" in \
 ENV SERVER_NAME=:8080
 ENV SERVER_ROOT=/app/public
 ENV SERVER_TIMEOUT=30
-ENV CADDY_SERVER_EXTRA_DIRECTIVES="respond /healthz 200"
 
 ARG SERVER_USER=www-data
 ENV SERVER_USER=${SERVER_USER}
+
+# Our own Caddyfile (serves /healthz + php_server); the base CMD already points
+# --config at this path. /healthz now lives in the Caddyfile, so CADDY_SERVER_EXTRA_DIRECTIVES
+# is free again as a user escape hatch (empty default, see the Caddyfile).
+COPY frankenphp/Caddyfile /etc/frankenphp/Caddyfile
 
 COPY common/index.php ${SERVER_ROOT}/index.php
 ENV HEALTHCHECK_PATH=/healthz

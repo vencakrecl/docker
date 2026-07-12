@@ -7,7 +7,11 @@ FROM ${BASE_IMAGE} AS base
 ###> RUNTIME DEPS
 COPY common/helper /usr/local/bin/helper
 COPY common/healthcheck /usr/local/bin/healthcheck
-RUN helper install-runtime-deps nginx \
+RUN case "$(helper detect-os)" in \
+      alpine) nginx_pkgs="nginx nginx-mod-http-brotli" ;; \
+      debian) nginx_pkgs="nginx libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static" ;; \
+    esac \
+ && helper install-runtime-deps $nginx_pkgs \
  && helper install-s6-overlay
 ###< RUNTIME DEPS
 

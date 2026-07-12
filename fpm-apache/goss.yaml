@@ -28,6 +28,15 @@ command:
   healthcheck:
     exec: healthcheck
     exit-status: 0
+  # Compression: brotli preferred (gzip fallback), driven by mod_filter (Apache won't
+  # self-negotiate br-vs-gzip). Write a compressible asset and assert the negotiated
+  # Content-Encoding is br - proves mod_brotli/mod_filter loaded and the providers dispatch.
+  compression-brotli:
+    exec: |
+      head -c 1024 /dev/zero | tr '\0' x > ${SERVER_ROOT}/__goss_compress.css
+      curl -s -D - -o /dev/null -H 'Accept-Encoding: br, gzip' http://127.0.0.1:8080/__goss_compress.css
+    exit-status: 0
+    stdout: ["Content-Encoding: br"]
   # Apache logs to the container's std streams (docker logs), not to files under
   # /var/log/apache2. The vhost ships ErrorLog /dev/stderr + CustomLog /dev/stdout;
   # the base per-distro file logs are disabled/redirected in the Dockerfile.

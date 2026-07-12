@@ -94,9 +94,11 @@ Pinning an extension version (the token is passed straight through):
 Tool versions are pinned at the top of `common/helper` (`S6_OVERLAY_VERSION`,
 `COMPOSER_VERSION`, `PIE_VERSION`, `CASTOR_VERSION`) and overridable via env.
 Keep them pinned - do not switch to "latest" URLs (reproducibility).
-- Where the distro layout genuinely diverges (Apache config tree/control binary,
-  presence of `dockerd`), the Dockerfile branches at build time by detecting the
-  distro (e.g. `command -v a2enmod`, `command -v dockerd`) rather than templating.
+- Where the distro layout genuinely diverges (e.g. the Apache config tree, or
+  per-distro packages/headers), the Dockerfile branches at build time on `helper
+  detect-os` (`debian`|`alpine`) rather than templating - e.g. fpm-apache's `case`
+  picking the Debian `a2enmod` path vs the Alpine `httpd.conf` sed, and the web images'
+  `PHP EXTENSIONS` blocks selecting per-distro `build_deps`.
 
 ## Commands
 
@@ -266,14 +268,19 @@ logs`). No log files inside the container. Wiring per source, and what is env-ov
   httpd's `${VAR}` expansion has **no** shell-style `:-default` (unlike PHP/nginx-run) -
   same as `${SERVER_TIMEOUT}`/`${SERVER_ROOT}`. The distro-default file logs are neutralized
   in the Dockerfile: Debian `a2disconf other-vhosts-access-log` (its `CustomLog`
-  *accumulates*, so disabling it prevents a file + double-log); Alpine sed rewrites
-  `httpd.conf`'s `ErrorLog`/`CustomLog` to the std streams. The `/var/log/apache2` chown was
-  dropped (nothing writes there now).
-- **Caddy (`frankenphp`):** inherits the base image's Caddy config (no Caddyfile in this
-  repo). Caddy's runtime/error logs go to stderr by default; HTTP **access** logging is off
-  by default (Caddy's own default). Documented as opt-in via appending `log` to
-  `CADDY_SERVER_EXTRA_DIRECTIVES` (JSON to stderr). PHP app errors still reach stderr via
-  the shared php.ini. No config change here (avoids fragile edits + healthz-request noise).
+  *accumulates*, so disabling it prevents a file + double-log); Alpine comments out
+  `httpd.conf`'s stock `CustomLog` (it also accumulates) via a one-line sed - the std-stream
+  `ErrorLog`/`CustomLog` are then supplied by the shared vhost (`ErrorLog` global last-wins,
+  `CustomLog` in the vhost). The `/var/log/apache2` chown was dropped (nothing writes there now).
+- **Caddy (`frankenphp`):** ships its own `frankenphp/Caddyfile`, COPYed to
+  `/etc/frankenphp/Caddyfile` (where the base CMD's `--config` already points). It trims the
+  upstream Mercure/Vulcain boilerplate and keeps the base's env knobs overridable
+  (`SERVER_NAME`, `SERVER_ROOT`, `CADDY_GLOBAL_OPTIONS`, `FRANKENPHP_CONFIG`,
+  `CADDY_EXTRA_CONFIG`, and the `{$CADDY_SERVER_EXTRA_DIRECTIVES}` placeholder). Caddy's
+  runtime/error logs go to stderr by default; HTTP **access** logging is off by default
+  (Caddy's own default). Opt in by appending `log` to `CADDY_SERVER_EXTRA_DIRECTIVES` (JSON
+  to stderr; the escape hatch is now empty by default - see Health checks). PHP app errors
+  still reach stderr via the shared php.ini.
 - **dind:** dockerd logs to stderr (base image default); not touched.
 
 Goss (per the repo's `env-*` pattern): the five php.ini error knobs get `ini_get` tests in
@@ -299,9 +306,9 @@ the daemon.
   endpoint (like serversideup's `/healthcheck`): the **fpm images** back it with
   php-fpm's **ping** (`ping.path=/healthz`, `ping.response=pong` in `common/php-fpm.conf`;
   nginx via a `location = /healthz`, apache via `ProxyPass "/healthz"`), so FPM answers
-  200 itself without running any PHP script; **frankenphp** has no FPM, so Caddy answers
-  with a static 200 via `ENV CADDY_SERVER_EXTRA_DIRECTIVES="respond /healthz 200"` (the
-  base Caddyfile's site-block placeholder). Healthy therefore means the web server + PHP
+  200 itself without running any PHP script; **frankenphp** has no FPM, so its
+  `frankenphp/Caddyfile` answers with a static `respond /healthz 200` in the site block
+  (before `php_server`). Healthy therefore means the web server + PHP
   runtime accept connections - it does **not** prove the app executes. `start-period=10s`.
 - **Deep / app checks (opt-in):** set `HEALTHCHECK_PATH=/` to probe end-to-end (serves
   the shared `common/index.php` through the full chain web -> php-fpm -> PHP, or
@@ -313,6 +320,32 @@ the daemon.
   `DOCKER_HOST=unix:///run/user/1000/docker.sock docker version` - healthy = the
   rootless daemon answers on its per-user socket. `start-period=30s` (rootlesskit +
   daemon are slow to come up); no PHP/curl involved.
+
+## Compression
+
+All three web images compress text-like responses with **brotli preferred, gzip fallback**
+(one encoding per response, never double). zstd is Caddy-only: no brotli-style module exists
+for Apache or Debian nginx (only Alpine nginx ships `nginx-mod-http-zstd`), so it's omitted
+from nginx/apache to keep a tag's behaviour identical across OS. Not applied to `dind`.
+
+- **frankenphp (Caddy):** the `frankenphp/Caddyfile` site block does `encode zstd br gzip`
+  natively - Caddy negotiates and includes zstd here. Caddy's `minimum_length` is 512B.
+- **nginx:** gzip is built in; brotli is a dynamic module (`load_module` at the top of
+  `nginx.conf`, same `.so` path both distros). Packages installed per distro in the RUNTIME
+  DEPS `case`: Debian `libnginx-mod-http-brotli-{filter,static}`, Alpine `nginx-mod-http-brotli`.
+  The `http{}` block sets `gzip`/`brotli` on with matching `*_types` + `*_static on`; nginx
+  applies only one (gzip skips a response brotli already encoded).
+- **apache:** `mod_deflate` (gzip) + `mod_brotli`. Apache does **not** self-negotiate br-vs-gzip
+  - `AddOutputFilterByType` with both filters double-compresses - so `vhost.conf` drives it via
+  **mod_filter**: a `FilterChain COMPRESS` whose two `FilterProvider`s have mutually exclusive
+  conditions (brotli when `Accept-Encoding =~ /br/`; deflate when `=~ /gzip/ && !~ /br/`, since
+  browsers send `gzip, deflate, br`) and a `%{CONTENT_TYPE}` guard so images/binaries are
+  skipped. Modules enabled per distro: Debian `a2enmod deflate brotli filter`; Alpine loads
+  `deflate` (+guarded `brotli`) in `alpine.conf` (mod_filter is stock-loaded; the
+  `apache2-brotli` package supplies mod_brotli and its `conf.d/brotli.conf` load).
+- **goss:** each web `goss.yaml` has a `compression-brotli` command test - writes a 1024B
+  compressible asset into `${SERVER_ROOT}` and asserts `curl -H 'Accept-Encoding: br, gzip'`
+  returns `Content-Encoding: br` (catches a base-image change that drops the module).
 
 ## Per-image notes
 
@@ -356,8 +389,17 @@ the daemon.
   fix-attrs/loggers/syslogd. Requirements: the runtime dirs must be writable by
   www-data - `chown -R www-data /run <server dirs>` (nginx: `/var/lib/nginx`
   `/var/log/nginx` which is a symlink `chown -R` won't follow; apache: switch
-  `Listen 80`→`8080` and `User/Group` to www-data per distro - logs go to
-  stdout/stderr so no log dir is chowned, see Logging). frankenphp uses
+  `Listen 80`→`8080` and `User/Group` to www-data per distro. Each distro has an
+  os-named drop-in that pulls in the shared `vhost.conf` and is inert on the other
+  distro (Alpine reads `conf.d`, Debian `conf-enabled`, neither reads the other's):
+  `fpm-apache/debian.conf` and `fpm-apache/alpine.conf`. Debian sets the port with a
+  COPYed `fpm-apache/ports.conf` (replaces the stock `Listen 80` file wholesale, so no
+  sed; modules via `a2enmod`, `User/Group` via the base envvars). Alpine's `alpine.conf`
+  carries the port/user/module config, but the stock main `httpd.conf` hardcodes `Listen
+  80` + a file `CustomLog` inline (both accumulate, so no include overrides them, and the
+  file can't be replaced wholesale without re-listing every distro `LoadModule`) - so those
+  two lines are the one remaining sed, commenting them out. Logs go to stdout/stderr so no
+  log dir is chowned, see Logging). frankenphp uses
   `ENV SERVER_NAME=:8080` (plain HTTP, no
   443/auto-TLS) and chowns `/app /config /data`.
 - **Host-user matching (local dev):** the web images take `USER_ID`/`GROUP_ID`
@@ -411,15 +453,15 @@ the daemon.
 - **Document root (`SERVER_ROOT`, runtime-overridable):** all three web images
   expose `SERVER_ROOT` (default fpm-nginx/fpm-apache `/var/www/html`, frankenphp
   `/app/public`) so the docroot can be changed with `docker run -e SERVER_ROOT=...`
-  (mount your app there). Wiring differs by server: frankenphp's Caddyfile reads it
-  natively (`root {$SERVER_ROOT:public/}`); Apache expands `${SERVER_ROOT}` in
+  (mount your app there). Wiring differs by server: frankenphp's `Caddyfile` reads it
+  natively (`root {$SERVER_ROOT:/app/public}`); Apache expands `${SERVER_ROOT}` in
   `vhost.conf` at config-parse time; nginx *cannot* expand env vars, so `nginx.conf`
   ships as `nginx.conf.template` and the nginx s6 run script renders `${SERVER_ROOT}`
   into `/run/nginx.conf` (via `sed`, only that token - `$uri`/`$document_root` are
   left intact) and starts `nginx -c /run/nginx.conf`. The shared hello-world
   `common/index.php` is COPYed into each default docroot.
 - `frankenphp`: `dunglas/frankenphp:php<ver>-bookworm|-alpine` base; serves
-  `/app/public` (the base Caddyfile's `SERVER_ROOT`, defaulted here to `/app/public`).
+  `/app/public` (`SERVER_ROOT`, set in the image's own `frankenphp/Caddyfile`).
 - `dind`: thin layer over `docker:*-dind-rootless` (daemon runs as the `rootless`
   user, uid 1000, via rootlesskit). Alpine-only upstream, so dind is a single
   variant (no debian/alpine split). Base entrypoint/CMD/USER inherited; run the
