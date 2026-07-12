@@ -1,0 +1,36 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "commitMessagePrefix": "chore:",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Tool versions pinned in common/helper and ci.yml (annotated with `# renovate:`)",
+      "managerFilePatterns": [
+        "common/helper",
+        ".github/workflows/ci.yml"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\n\\s*[A-Z0-9_]+=\"\\$\\{[A-Z0-9_]+:-(?<currentValue>[^}\"]+)\\}\"",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\n\\s*[A-Z0-9_]+:\\s*(?<currentValue>\\S+)"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "After a helper/goss version bump, the matching *_SHA256 must be refreshed with `make bump-digests` (Renovate cannot recompute artifact digests).",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "prBodyNotes": [
+        ":warning: This bumps a version only. Run `make bump-digests` and commit the refreshed `*_SHA256` (in `common/helper`) / `GOSS_SHA256_*` (in `.github/workflows/ci.yml`), or CI will fail closed on the checksum mismatch. For gcloud/azure-cli see `scripts/deps.sh`."
+      ]
+    }
+  ]
+}

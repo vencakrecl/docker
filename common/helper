@@ -31,10 +31,17 @@
 #   install-docker-ext <ext...>              install PHP extension(s) via docker-php-ext-install
 #   install-docker-skip-enable-ext <ext...>  ... without enabling
 #
-# Pinned tool versions (override via build args / env):
+# Pinned tool versions (override via build args / env). The `# renovate:` annotations let
+# Renovate open version-bump PRs (see .github/renovate.json); after a bump, run
+# `make bump-digests` to refresh the matching *_SHA256 below. gcloud and azure-cli have no
+# standard Renovate datasource - scripts/deps.sh reports those instead.
+# renovate: datasource=github-releases depName=just-containers/s6-overlay versioning=loose
 S6_OVERLAY_VERSION="${S6_OVERLAY_VERSION:-3.2.3.0}"
+# renovate: datasource=github-releases depName=composer/composer
 COMPOSER_VERSION="${COMPOSER_VERSION:-2.10.2}"
+# renovate: datasource=github-releases depName=php/pie
 PIE_VERSION="${PIE_VERSION:-1.4.8}"
+# renovate: datasource=github-releases depName=jolicode/castor
 CASTOR_VERSION="${CASTOR_VERSION:-1.6.1}"
 GCLOUD_VERSION="${GCLOUD_VERSION:-575.0.1}"
 AZURE_CLI_VERSION="${AZURE_CLI_VERSION:-2.88.0}"
