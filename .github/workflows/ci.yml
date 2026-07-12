@@ -14,6 +14,7 @@ permissions:
   contents: read
 
 env:
+  # renovate: datasource=github-releases depName=goss-org/goss
   GOSS_VERSION: v0.4.9
   # goss + dgoss are verified against digests pinned here (never a checksum fetched from the
   # same origin as the artifact - trust-on-first-use). Bump all three alongside GOSS_VERSION.

@@ -118,6 +118,23 @@ transitive tree to exact versions + PyPI sha256; regenerate it with `dind/gen-az
 after bumping `AZURE_CLI_VERSION` (the version lives in the lockfile). AWS CLI is an apk package (verified by apk). The verifier is
 exposed as `helper verify-sha256 <file> <sha256>`; CI reuses it to check its goss binary (against
 the pinned per-arch `GOSS_SHA256_{AMD64,ARM64}`) and the `dgoss` script (pinned via `DGOSS_SHA256`).
+
+**Dependency automation.** These hand-pinned versions are kept fresh by three cooperating
+pieces (Dependabot only covers github-actions - `FROM ${BASE_IMAGE}` and the helper pins
+aren't tracked ecosystems):
+- **Renovate** (`.github/renovate.json`) opens version-bump PRs for s6-overlay/composer/pie/castor
+  (annotated with `# renovate:` comments in `common/helper`) and goss (in `ci.yml`), via a
+  custom regex manager keyed off those comments. It cannot recompute artifact digests, so a
+  bump PR carries a note to run `make bump-digests` (CI fails closed on the stale digest otherwise).
+- **`scripts/deps.sh`** (`make check-deps` / `make bump-digests`): `check` reports pinned-vs-latest
+  for every tool incl. gcloud + azure-cli (which have no standard Renovate datasource);
+  `refresh-digests [tool...]` re-fetches each artifact at its currently-pinned version and rewrites
+  the matching `*_SHA256` in `common/helper` / `ci.yml` (uses `cat >` not `mv` so `helper`'s 0755
+  mode survives). "Verify digests" = `refresh-digests` + `git diff --exit-code`.
+- **`.github/workflows/deps-check.yml`** runs `deps.sh check` weekly (Mon 06:00 UTC) and opens/updates
+  a single `Outdated pinned dependencies` issue via `gh` when anything is behind (`exit 3`).
+- Base-image tags (`PHP_VERSION`/`DOCKER_VERSION`) are intentionally not automated: they're policy
+  floors, and OS security patches arrive on every rebuild since the `FROM` tags aren't digest-pinned.
 - Where the distro layout genuinely diverges (e.g. the Apache config tree, or
   per-distro packages/headers), the Dockerfile branches at build time on `helper
   detect-os` (`debian`|`alpine`) rather than templating - e.g. fpm-apache's `case`
