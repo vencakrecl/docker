@@ -179,3 +179,9 @@ http:
     status: 200
     body: ["Hello, World!"]
     timeout: 5000
+  # Front-controller fallback: an unknown path routes to index.php (not 404), matching
+  # nginx try_files / Caddy php_server. Guards the vhost mod_rewrite rule.
+  http://localhost:8080/no/such/route:
+    status: 200
+    body: ["Hello, World!"]
+    timeout: 5000

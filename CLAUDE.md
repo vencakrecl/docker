@@ -460,6 +460,17 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
   into `/run/nginx.conf` (via `sed`, only that token - `$uri`/`$document_root` are
   left intact) and starts `nginx -c /run/nginx.conf`. The shared hello-world
   `common/index.php` is COPYed into each default docroot.
+- **Static files + front-controller fallback:** all three serve standard static assets
+  (html/css/js/json/svg/images/fonts...) directly from `SERVER_ROOT` with correct MIME
+  types - only `.php` is handed to PHP (nginx `location ~ \.php$`, Apache `<FilesMatch
+  \.php$>` SetHandler, Caddy `php_server`). An **unknown path falls through to
+  `index.php`** (the front-controller pattern, so framework routes work): nginx via
+  `try_files $uri $uri/ /index.php?$query_string`, Caddy via `php_server`, and Apache via
+  a `mod_rewrite` rule in `vhost.conf`'s `<Directory>` (`RewriteCond !-f/!-d` then
+  `RewriteRule ^ index.php`). Apache's `/healthz` ProxyPass is unaffected (it claims the
+  request before per-directory rewrites, so healthz stays a php-fpm ping, verified by the
+  `pong` body). An app's own `public/.htaccess` still overrides (Apache `AllowOverride
+  All`). A `no/such/route -> 200` goss `http` test guards the fallback in all three.
 - `frankenphp`: `dunglas/frankenphp:php<ver>-bookworm|-alpine` base; serves
   `/app/public` (`SERVER_ROOT`, set in the image's own `frankenphp/Caddyfile`).
 - `dind`: thin layer over `docker:*-dind-rootless` (daemon runs as the `rootless`
