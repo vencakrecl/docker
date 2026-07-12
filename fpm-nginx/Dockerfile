@@ -17,13 +17,15 @@ RUN helper install-packages nginx \
 #   PHP_PIE_EXTENSIONS     PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
 #   PHP_RUNTIME_PACKAGES   extra runtime system libs (e.g. "libpng-dev"), KEPT
 #   PHP_BUILD_PACKAGES     build-only deps (e.g. headers "linux-headers"), REMOVED after build
-# helper install-extensions reads these and adds/removes the pecl/pie build deps itself.
+# pecl/pie compile from source, so the toolchain ($PHPIZE_DEPS, an image ENV) + unzip
+# are prepended to PHP_BUILD_PACKAGES for the build and dropped again afterwards.
 ARG PHP_RUNTIME_PACKAGES=""
 ARG PHP_DOCKER_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS=""
 ARG PHP_BUILD_PACKAGES=""
-RUN helper install-extensions
+RUN export PHP_BUILD_PACKAGES="$PHPIZE_DEPS unzip${PHP_BUILD_PACKAGES:+ $PHP_BUILD_PACKAGES}" \
+ && helper install-extensions
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
 COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
@@ -95,15 +97,16 @@ ARG PHP_PECL_EXTENSIONS=""
 ARG PHP_PIE_EXTENSIONS="xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22"
 COPY common/dev.ini /usr/local/etc/php/conf.d/zz-dev.ini
 # Per-distro system packages for the dev extensions, by lifetime:
-#   PHP_BUILD_PACKAGES    build-only, dropped after the build - xdebug needs linux-headers
-#                         on Alpine, spx needs zlib headers on both.
+#   PHP_BUILD_PACKAGES    build deps, dropped after the build - the toolchain ($PHPIZE_DEPS)
+#                         + unzip (pecl/pie), plus headers (xdebug needs linux-headers on
+#                         Alpine, spx needs zlib headers on both).
 #   PHP_RUNTIME_PACKAGES  kept - unzip so runtime `composer install` can extract packages
 #                         (Debian's base ships none; Alpine's busybox unzip is limited).
 RUN helper install-composer \
  && helper install-castor \
  && case "$(helper detect-os)" in \
-      alpine) export PHP_BUILD_PACKAGES="linux-headers zlib-dev" PHP_RUNTIME_PACKAGES="unzip" ;; \
-      debian) export PHP_BUILD_PACKAGES="zlib1g-dev"             PHP_RUNTIME_PACKAGES="unzip" ;; \
+      alpine) export PHP_BUILD_PACKAGES="$PHPIZE_DEPS unzip linux-headers zlib-dev" PHP_RUNTIME_PACKAGES="unzip" ;; \
+      debian) export PHP_BUILD_PACKAGES="$PHPIZE_DEPS unzip zlib1g-dev"             PHP_RUNTIME_PACKAGES="unzip" ;; \
     esac \
  && helper install-extensions
 USER ${SERVER_USER}

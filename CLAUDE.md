@@ -52,16 +52,19 @@ See `README.md` for the authoritative scheme. Summary:
   /etc/passwd + /etc/group (distro-agnostic; Alpine has no usermod). Run it
   *before* the image's `chown -R <user>` so the chown uses the new id.
 - `install-packages <pkgs...>` -> apt-get or apk, with cache cleanup
-- `install-build-deps [pkgs...]` / `remove-build-deps` -> add `$PHPIZE_DEPS` + `unzip`
-  (+extras) for building pecl/pie exts, then drop what was added. Alpine: an `apk
-  --virtual` group, dropped whole. Debian: `$PHPIZE_DEPS` is the base's (kept); the
-  added `unzip`+extras are recorded and `apt-get purge --auto-remove`d (runtime libs
-  survive). So on both distros the transient build packages leave no trace.
+- `install-build-deps <pkgs...>` / `remove-build-deps` -> install the given packages as
+  a removable group, then drop what was added. The caller (the Dockerfile) passes the
+  packages - the toolchain (`$PHPIZE_DEPS`, an image ENV), `unzip`, and any headers.
+  Alpine: an `apk --virtual` group, dropped whole. Debian: only the packages it *newly*
+  installed are recorded and `apt-get purge --auto-remove`d, so already-present ones
+  (base `$PHPIZE_DEPS`, a runtime pkg) survive. Either way the transient build packages
+  leave no trace (Debian keeps its base toolchain, which it owns).
 - `install-extensions` -> install the `PHP_DOCKER_EXTENSIONS`/`PHP_PECL_EXTENSIONS`/
   `PHP_PIE_EXTENSIONS` build args, plus `PHP_RUNTIME_PACKAGES` (kept - runtime system
-  libs) and `PHP_BUILD_PACKAGES` (removed - build-only deps, joined to the build-deps
-  group); all read from env. Wraps the
-  above so each web Dockerfile is just the 4 `ARG`s + `RUN helper install-extensions`
+  libs) and `PHP_BUILD_PACKAGES` (removed - build-only deps incl. the caller-provided
+  toolchain, passed to `install-build-deps`); all read from env. Wraps the
+  above so each web Dockerfile is just the `ARG`s + a `RUN` that prepends
+  `$PHPIZE_DEPS unzip` to `PHP_BUILD_PACKAGES` and calls `helper install-extensions`
 - `install-s6-overlay` -> s6-overlay init/supervisor (noarch + per-arch tarballs)
 - `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
 - `install-pie` -> PIE phar to `/usr/local/bin/pie` (needs PHP at runtime)
@@ -321,11 +324,12 @@ the daemon.
     absent before and after). So `install-extensions` does *not* wrap `PHP_DOCKER_EXTENSIONS` in
     the build-deps bracket.
   - PECL/PIE compile external sources and need `$PHPIZE_DEPS` - present on Debian, absent
-    on Alpine. The args auto-add it (plus `unzip`, which PIE needs to fetch packages) via
-    `helper install-build-deps`, then `helper remove-build-deps` drops what was added:
-    Alpine deletes the `apk --virtual` group; Debian keeps its base `$PHPIZE_DEPS` but
-    `apt-get purge --auto-remove`s the added `unzip`+extras (runtime libs survive). So the
-    transient build packages leave no trace on either distro. Verified: pecl `redis` on
+    on Alpine. Each web Dockerfile's `RUN` prepends `$PHPIZE_DEPS unzip` (unzip is what PIE
+    uses to fetch packages) to `PHP_BUILD_PACKAGES`, and `install-extensions` hands that to
+    `helper install-build-deps` (removable), then `helper remove-build-deps` drops what was
+    added: Alpine deletes the `apk --virtual` group; Debian purges only the packages it
+    newly installed (base `$PHPIZE_DEPS` and runtime libs survive). So the transient build
+    packages leave no trace (Debian keeps its base toolchain). Verified: pecl `redis` on
     Alpine loads and autoconf is gone afterward; pie `xdebug/xdebug` on Debian loads.
   - Extensions needing extra *system* packages take them via two knobs, by lifetime:
     **`PHP_RUNTIME_PACKAGES`** for runtime libs (KEPT - e.g. `gd`->`libpng-dev`), and
@@ -373,17 +377,18 @@ and **spx** extensions. Not applied to `dind` (not a PHP image).
   override any of the four ARGs via `--build-arg`. pcov has no native PIE package, so it
   uses PIE's `pecl/` bridge (`pecl/pcov`); xdebug and spx have native PIE packages.
 - **Per-distro system packages, by lifetime.** The `dev` stage's `RUN` branches on
-  `helper detect-os` and sets two lists: **`PHP_BUILD_PACKAGES`** (build-only, removed) -
-  the headers xdebug/spx compile against (Alpine `linux-headers zlib-dev`, Debian
-  `zlib1g-dev`; base toolchain covers xdebug on Debian) - and **`PHP_RUNTIME_PACKAGES`**
-  (kept) - `unzip`, so runtime `composer install` can extract packages (Debian's base
-  ships none; Alpine's busybox `unzip` is limited). The build headers go through the
-  *removable* build-deps group so they're dropped after the build (~7 MB saved on
-  Alpine); `unzip` survives because `install_build_deps` records for removal only the
-  packages it *newly* installed (unzip was already present as a runtime pkg). Each `dev`
-  stage is self-contained - `docker build --target dev` works without the Makefile.
-  Verified on both distros: extensions load, build headers gone (runtime `zlib`/`zlib1g`
-  stays), `unzip` present.
+  `helper detect-os` and sets two lists: **`PHP_BUILD_PACKAGES`** (removed) -
+  `$PHPIZE_DEPS unzip` (the pecl/pie toolchain) plus the headers xdebug/spx compile
+  against (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`) - and
+  **`PHP_RUNTIME_PACKAGES`** (kept) - `unzip`, so runtime `composer install` can extract
+  packages (Debian's base ships none; Alpine's busybox `unzip` is limited). The build
+  packages go through the *removable* build-deps group so they're dropped after the build
+  (~7 MB of headers saved on Alpine, plus the toolchain there); `unzip` survives because
+  `install_build_deps` records for removal only what it *newly* installed (unzip was
+  already present as a runtime pkg), and on Debian the base `$PHPIZE_DEPS` stays (its own).
+  Each `dev` stage is self-contained - `docker build --target dev` works without the
+  Makefile. Verified on both distros: extensions load, headers gone (runtime
+  `zlib`/`zlib1g` stays), `unzip` present.
 - **Config (`common/dev.ini` -> `conf.d/zz-dev.ini`)** tunes the three extensions,
   env-overridable like the shared php.ini. **xdebug is off by default**
   (`xdebug.mode = ${XDEBUG_MODE:-off}`) so the dev image carries zero xdebug overhead

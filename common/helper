@@ -10,15 +10,15 @@
 #   detect-os                       print distro family: debian | alpine
 #   set-user-id <user> <uid> [gid]  change an existing user's uid/gid (host match)
 #   install-packages <pkg...>       install OS packages (apt-get or apk)
-#   install-build-deps [pkg...]     install $PHPIZE_DEPS + unzip (+extras), removable group
-#   remove-build-deps               drop what install-build-deps newly added (toolchain +
-#                                   unzip/extras on Alpine; on Debian purge only the ones
-#                                   it installed - pre-existing/runtime pkgs and base
-#                                   $PHPIZE_DEPS survive)
+#   install-build-deps <pkg...>     install the given packages as a removable group (the
+#                                   caller passes the toolchain $PHPIZE_DEPS, unzip, headers)
+#   remove-build-deps               drop what install-build-deps newly added (Alpine: the
+#                                   whole apk --virtual group; Debian: purge only the pkgs
+#                                   it installed - pre-existing/runtime/base pkgs survive)
 #   install-extensions              install PHP_DOCKER_EXTENSIONS/PHP_PECL_EXTENSIONS/
 #                                   PHP_PIE_EXTENSIONS + PHP_RUNTIME_PACKAGES (kept
-#                                   runtime libs) / PHP_BUILD_PACKAGES (removed build-only
-#                                   deps), all from env
+#                                   runtime libs) / PHP_BUILD_PACKAGES (removed build deps,
+#                                   caller-provided incl. the toolchain), all from env
 #   install-s6-overlay              install s6-overlay (process supervisor / init)
 #   install-composer                install Composer to /usr/local/bin/composer
 #   install-pie                     install PIE (PHP ext installer) to /usr/local/bin/pie
@@ -220,18 +220,18 @@ install_docker_skip_enable_ext() {
 # apk --virtual group that remove-build-deps drops again; on Debian the base php image
 # already ships $PHPIZE_DEPS (kept in place), so only unzip and the extras are added.
 install_build_deps() {
+    [ "$#" -gt 0 ] || return 0
     case "$(detect_os)" in
-        alpine) apk add --no-cache --virtual .helper-build-deps $PHPIZE_DEPS unzip "$@" ;;
+        alpine) apk add --no-cache --virtual .helper-build-deps "$@" ;;
         debian)
-            # $PHPIZE_DEPS belongs to the base image (keep it). Record only packages we
-            # actually add now - skip any already installed (a runtime pkg added earlier,
-            # or a base pkg) so remove_build_deps purges only the transient ones and a
-            # package that is also a runtime dep survives.
+            # Record only packages we actually add now - skip any already installed (a
+            # runtime pkg, or a base pkg like $PHPIZE_DEPS) so remove_build_deps purges
+            # only the transient ones and a package that is also a runtime dep survives.
             : > /tmp/.helper-build-extras
-            for _pkg in unzip "$@"; do
+            for _pkg in "$@"; do
                 dpkg -s "$_pkg" >/dev/null 2>&1 || echo "$_pkg" >> /tmp/.helper-build-extras
             done
-            install_packages $PHPIZE_DEPS unzip "$@"
+            install_packages "$@"
             ;;
         *) echo "install-build-deps: unsupported OS" >&2; return 1 ;;
     esac
@@ -267,9 +267,10 @@ install_extensions() {
     if [ -n "${PHP_RUNTIME_PACKAGES:-}" ]; then install_packages $PHP_RUNTIME_PACKAGES; fi
     if [ -n "${PHP_DOCKER_EXTENSIONS:-}" ]; then install_docker_ext $PHP_DOCKER_EXTENSIONS; fi
     if [ -n "${PHP_PECL_EXTENSIONS:-}" ] || [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then
-        # PHP_BUILD_PACKAGES: extra build-only system deps (e.g. headers) joined to the
-        # removable toolchain group, so they are dropped after the build - unlike
-        # PHP_RUNTIME_PACKAGES, which are kept for runtime libs.
+        # PHP_BUILD_PACKAGES holds the build-only deps for compiling pecl/pie exts: the
+        # caller (the image's Dockerfile) provides the toolchain ($PHPIZE_DEPS), unzip,
+        # and any headers. Installed as a removable group, dropped after the build -
+        # unlike PHP_RUNTIME_PACKAGES, which are kept for runtime libs.
         install_build_deps ${PHP_BUILD_PACKAGES:-}
         if [ -n "${PHP_PECL_EXTENSIONS:-}" ]; then install_pecl_ext $PHP_PECL_EXTENSIONS; fi
         if [ -n "${PHP_PIE_EXTENSIONS:-}" ]; then install_pie; install_pie_ext $PHP_PIE_EXTENSIONS; fi
