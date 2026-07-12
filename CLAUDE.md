@@ -23,12 +23,18 @@ See `README.md` for the authoritative scheme. Summary:
   - PHP images (`fpm-nginx`, `fpm-apache`, `frankenphp`): `<php-version>-<os>`, e.g. `8.3-alpine`.
   - `dind`: `<docker-version>-rootless` (single variant; no OS suffix - it is
     meaningless for dind, and `-rootless` names the meaningful trait).
+  - Dev variant of the web images: `<php-version>-<os>-dev` (e.g. `8.4-alpine-dev`);
+    `-dev` names the trait (adds the dev toolbox), same as `-rootless` for dind. See
+    the Dev image variant section.
 - Registry/namespace is not decided yet; images are named without a prefix.
 
 ## Layout and build model
 
 - One directory per image, each with a **single** `Dockerfile`. There are no
-  per-OS Dockerfiles.
+  per-OS Dockerfiles. The three web images' Dockerfiles are **multi-stage**: a `base`
+  stage (all the prod build steps), a `dev` stage that layers the dev toolbox on top
+  (`--target dev`), and a trailing empty `prod` stage (`FROM base`) kept *last* so a
+  plain `docker build`/compose with no `--target` still yields the lean prod image.
 - Debian vs Alpine is a build-time input, not a separate file:
   - The Makefile passes the base image as the `BASE_IMAGE` build arg (it owns the
     image/OS/version -> tag mapping).
@@ -45,31 +51,27 @@ See `README.md` for the authoritative scheme. Summary:
 - `set-user-id <user> <uid> [gid]` -> rewrites the user's uid/gid in
   /etc/passwd + /etc/group (distro-agnostic; Alpine has no usermod). Run it
   *before* the image's `chown -R <user>` so the chown uses the new id.
-- `install-packages <pkgs...>` -> apt-get or apk, with cache cleanup
-- `install-build-deps [pkgs...]` / `remove-build-deps` -> add `$PHPIZE_DEPS` + `unzip`
-  (+extras) as a removable group for building pecl/pie exts, then drop it (Alpine
-  `apk --virtual`; no-op remove on Debian, whose base already ships the toolchain)
-- `install-extensions` -> install the `PHP_EXTENSIONS`/`PHP_PECL_EXTENSIONS`/
-  `PHP_PIE_EXTENSIONS`/`PHP_EXTENSION_PACKAGES` build args (read from env); wraps the
-  above so each web Dockerfile is just the 4 `ARG`s + `RUN helper install-extensions`
+- `install-runtime-deps <pkgs...>` -> apt-get or apk, with cache cleanup
+- `install-build-deps <pkgs...>` / `remove-build-deps` -> install the given packages as
+  a removable group, then drop what was added. The caller (the Dockerfile) passes the
+  packages - the toolchain (`$PHPIZE_DEPS`, an image ENV), `unzip`, and any headers.
+  Alpine: an `apk --virtual` group, dropped whole. Debian: only the packages it *newly*
+  installed are recorded and `apt-get purge --auto-remove`d, so already-present ones
+  (base `$PHPIZE_DEPS`, a runtime pkg) survive. Either way the transient build packages
+  leave no trace (Debian keeps its base toolchain, which it owns).
 - `install-s6-overlay` -> s6-overlay init/supervisor (noarch + per-arch tarballs)
 - `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
 - `install-pie` -> PIE phar to `/usr/local/bin/pie` (needs PHP at runtime)
 - `install-castor` -> Castor static binary to `/usr/local/bin/castor`
-Each tool has an enabling and a non-enabling variant; every arg is an extension
-(multiple allowed):
+Each installs + enables the extension(s); every arg is an extension name (multiple
+allowed):
 
-- `install-pie-ext` / `install-pie-skip-enable-ext` -> `pie install`
-  (composer-style `vendor/ext` names)
-- `install-pecl-ext` / `install-pecl-skip-enable-ext` -> `pecl install`
-  (the enabling variant also runs `docker-php-ext-enable`)
-- `install-docker-ext` / `install-docker-skip-enable-ext` -> `docker-php-ext-install`
+- `install-pie-ext` -> `pie install` (composer-style `vendor/ext` names)
+- `install-pecl-ext` -> `pecl install` (then `docker-php-ext-enable`)
+- `install-docker-ext` -> `docker-php-ext-install`
 
-How "skip enable" is implemented differs per tool: pie has a native
-`--skip-enable-extension` flag; pecl simply omits the enable call; docker removes
-the generated `conf.d/docker-php-ext-<ext>.ini` (docker-php-ext-install always
-enables). Build/runtime deps ($PHPIZE_DEPS, `-dev` libs) are the caller's
-responsibility, as in the official php image docs.
+Build/runtime deps ($PHPIZE_DEPS, `-dev` libs) are the caller's responsibility, as in
+the official php image docs.
 
 Pinning an extension version (the token is passed straight through):
 - pecl: `redis-6.1.0` (name-version). The enable step strips the version.
@@ -138,11 +140,13 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
   `<<DELIM` format). `build-php-image` and `release-php-image` both consume it via
   `${{ fromJSON(needs.matrix.outputs.targets) }}` - edit versions in one place.
 - `build-php-image` job: matrix of `arch` (amd64 / arm64) x `os` (alpine / debian) x
-  `target` - one job per variant (targets x 2 arch x 2 os). Each runs on the matching runner
-  (`ubuntu-latest` / `ubuntu-24.04-arm`), installs goss/dgoss for that arch
-  (`dpkg --print-architecture`), then separate steps: **Build**
-  (`make <image>-<os> PHP_VERSION=<php>`), **Test** (`dgoss run <image>:<php>-<os>`),
-  and on main **Push** (see below). `IMAGE`/`PHP`/`OS`/`REF` are job-level `env`
+  **`variant` (prod / dev)** x `target` (targets x 2 x 2 x 2 jobs). Each runs on the
+  matching runner (`ubuntu-latest` / `ubuntu-24.04-arm`), installs goss/dgoss for that
+  arch (`dpkg --print-architecture`), then separate steps: **Build**
+  (`make $MAKE_TARGET PHP_VERSION=<php>`, where `MAKE_TARGET`/`TAG` carry the `-dev`
+  suffix for the dev variant), **Test** (`dgoss run <image>:$TAG` - the dev variant runs
+  `common/goss.dev.yaml` via `GOSS_FILE`), **Graceful stop**, and on main **Push** (see
+  below). `IMAGE`/`PHP`/`OS`/`VARIANT`/`MAKE_TARGET`/`TAG`/`REF` are job-level `env`
   (matrix context is available there). Native arch builds (no QEMU) so goss can run
   the container. `fail-fast: false`; goss pinned via `GOSS_VERSION`.
 - `build-dind-image` job: per-arch, `make test-dind` (single rootless variant, no
@@ -155,8 +159,10 @@ reading `<image>/goss.yaml`. Runs the Alpine tag.
 - `release-php-image` / `release-dind-image` jobs (`needs: build-php-image` /
   `build-dind-image`, `if: main`): assemble the per-arch tags into the final
   multi-arch tag with `docker buildx imagetools create -t <tag> <tag>-amd64
-  <tag>-arm64`. Downside: the `-amd64`/`-arm64` tags linger in the registry (the
-  merged `<tag>` is the clean multi-arch one).
+  <tag>-arm64`. `release-php-image` carries the same `os` x `variant` x `target` matrix,
+  so both `<php>-<os>` and `<php>-<os>-dev` get their multi-arch manifest. Downside: the
+  `-amd64`/`-arm64` tags linger in the registry (the merged `<tag>` is the clean
+  multi-arch one).
 - The s6 `run` scripts carry `# shellcheck shell=sh` (for the `with-contenv`
   shebang) - kept even though lint was dropped, in case it's re-added.
 - Run the workflow locally with `act` (nektos/act); `.actrc` maps the runner
@@ -297,24 +303,43 @@ the daemon.
   on Linux; Docker Desktop auto-maps). Makefile passes them only when set (so no
   build warning on dind). Default unset = hardened uid 82/33. Runtime alternative:
   `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
-- **Extra PHP extensions (build-time args):** all three web images take four optional,
-  space-separated args: `PHP_EXTENSIONS` (`docker-php-ext-install`, bundled),
-  `PHP_PECL_EXTENSIONS` (PECL), `PHP_PIE_EXTENSIONS` (PIE, composer `vendor/name`), and
-  `PHP_EXTENSION_PACKAGES` (extra system libs, kept in the image). All default empty
-  (no-op, so the base images stay lean). Example:
-  `--build-arg PHP_EXTENSIONS="mysqli gd" --build-arg PHP_EXTENSION_PACKAGES="libpng-dev"`
-  (used by `examples/wordpress`).
-  - Bundled extensions (`docker-php-ext-install`) compile without the toolchain on both
-    distros (they build in the PHP source tree, no `phpize`/autoconf).
+- **PHP extensions - a default set, extended by deriving:** all three web images install
+  the **same default extension set** with **explicit `helper` calls** in their Dockerfiles
+  (no build-args, readable) - two per install manager, all needing no extra system libs:
+  `install-docker-ext mysqli bcmath`, `install-pecl-ext redis-6.3.0 apcu-5.1.28`,
+  `install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1`
+  (`install-pie-ext` installs the PIE binary itself if needed), bracketed by
+  `install-build-deps $PHPIZE_DEPS unzip` / `remove-build-deps`. A `default-extensions`
+  goss test asserts they load. Each image's `dev` stage does the same for xdebug/pcov/spx,
+  with a `detect-os` `case` selecting per-distro `build_deps`/`runtime_deps` (Alpine
+  `linux-headers zlib-dev`, Debian `zlib1g-dev`; plus a kept `unzip` for composer). The
+  three base/dev blocks are identical across the images (the explicit style trades DRY for
+  readability).
+  - **To *extend* the defaults, derive - don't rebuild from the repo.** Dockerfile edits
+    only apply when building the image from this repo; a downstream `FROM <image>:<tag>` user
+    adds extensions with the baked-in `helper` (`USER root; helper install-runtime-deps
+    <libs>; helper install-docker-ext/-pecl-ext/-pie-ext <ext>; USER www-data`).
+    `examples/wordpress/Dockerfile` extends the defaults with one more, `gd` (+`libpng-dev`).
+    PIE's ecosystem is thin - most `pecl/<name>` bridges 404 on Packagist; only a few
+    (`pecl/pcov`, `pecl/zip`) and native `vendor/ext-*` install.
+  - Bundled extensions (`docker-php-ext-install` / `helper install-docker-ext`) need no
+    caller-provided toolchain: `docker-php-ext-install` installs its build deps transiently
+    and purges them itself (verified - the Alpine build log ends with `Purging musl-dev /
+    libgcc`; `gcc` is absent before and after). So `install-docker-ext` needs no
+    `install-build-deps` bracket.
   - PECL/PIE compile external sources and need `$PHPIZE_DEPS` - present on Debian, absent
-    on Alpine. The args auto-add it (plus `unzip`, which PIE needs to fetch packages) via
-    `helper install-build-deps` as a removable group, then `helper remove-build-deps`
-    drops it (Alpine `apk add --virtual`/`apk del`; on Debian the base toolchain stays).
-    Verified: pecl `redis` on Alpine loads and autoconf is gone afterward; pie
-    `xdebug/xdebug` on Debian loads.
-  - Extensions needing extra *system* build headers/libs take them via
-    `PHP_EXTENSION_PACKAGES` (e.g. `gd`->`libpng-dev`, `xdebug` on Alpine->`linux-headers`).
-    Note these are KEPT (not auto-removed), since they may be runtime libs.
+    on Alpine. Each web Dockerfile's `RUN` runs `helper install-build-deps $PHPIZE_DEPS unzip`
+    (unzip is what PIE uses to fetch packages) around the pecl/pie installs, then
+    `helper remove-build-deps` drops what was added: Alpine deletes the `apk --virtual`
+    group; Debian purges only the packages it
+    newly installed (base `$PHPIZE_DEPS` and runtime libs survive). So the transient build
+    packages leave no trace (Debian keeps its base toolchain). Verified: pecl `redis` on
+    Alpine loads and autoconf is gone afterward; pie `xdebug/xdebug` on Debian loads.
+  - Extensions needing extra *system* packages take them via two knobs, by lifetime:
+    **`PHP_RUNTIME_PACKAGES`** for runtime libs (KEPT - e.g. `gd`->`libpng-dev`), and
+    **`PHP_BUILD_PACKAGES`** for build-only deps (REMOVED after the build, joined to the
+    build-deps group - e.g. `xdebug` on Alpine->`linux-headers`, spx->zlib headers). Put a
+    package in whichever matches whether its files are needed at runtime.
   - Not expressible through the args (use the helper / a derived Dockerfile):
     `docker-php-ext-configure` flags (e.g. gd with jpeg/freetype) and per-extension PIE
     config flags (e.g. `asgrim/example-pie-extension` needs `--enable-...`).
@@ -335,6 +360,46 @@ the daemon.
   variant (no debian/alpine split). Base entrypoint/CMD/USER inherited; run the
   container with `--privileged`. The rootless daemon socket is
   `/run/user/1000/docker.sock`, so a CLI needs `DOCKER_HOST` pointed there.
+
+## Dev image variant
+
+The three web images (`fpm-nginx`, `fpm-apache`, `frankenphp`) have a `dev` build stage
+(`make <image>-dev[-<os>]`, tag `<php>-<os>-dev`) that layers a development toolbox onto
+the lean prod image: **composer** + **castor** (binaries) and the **xdebug**, **pcov**,
+and **spx** extensions. Not applied to `dind` (not a PHP image).
+
+- **Structure:** multi-stage (`base`/`dev`/`prod`) - see Layout. `dev` runs as `root`
+  to install, then resets `USER ${SERVER_USER}`; it inherits the prod ENTRYPOINT/
+  HEALTHCHECK/etc. Building without `--target` still gives the lean image (the empty
+  `prod` stage is last).
+- **Extensions installed explicitly.** The `dev` stage runs `helper install-composer`,
+  `install-castor`, then `install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12
+  noisebynorthwest/php-spx:0.4.22` (pinned inline, no ARGs; `install-pie-ext` installs the
+  PIE binary itself if absent). pcov has no native PIE package, so it uses PIE's `pecl/`
+  bridge (`pecl/pcov`); xdebug and spx have native PIE packages.
+- **Per-distro packages via a `detect-os` case.** The `RUN` sets two shell vars:
+  `build_deps` (removable) - `$PHPIZE_DEPS unzip` (the pecl/pie toolchain) plus the headers
+  xdebug/spx compile against (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`) - and
+  `runtime_deps` (kept) - `unzip`, so runtime `composer install` can extract packages
+  (Debian's base ships none; Alpine's busybox `unzip` is limited). It then calls
+  `install-runtime-deps $runtime_deps`, `install-build-deps $build_deps`, the extension
+  installs, and `remove-build-deps`. So the build packages leave no trace (~7 MB of headers
+  saved on Alpine, plus the toolchain there); `unzip` survives because `install_build_deps`
+  records for removal only what it *newly* installed (unzip was already installed as a
+  runtime pkg), and on Debian the base `$PHPIZE_DEPS` stays (its own). Each `dev` stage is
+  self-contained - `docker build --target dev` works without the Makefile. Verified on both
+  distros: extensions load, headers gone (runtime
+  `zlib`/`zlib1g` stays), `unzip` present.
+- **Config (`common/dev.ini` -> `conf.d/zz-dev.ini`)** tunes the three extensions,
+  env-overridable like the shared php.ini. **xdebug is off by default**
+  (`xdebug.mode = ${XDEBUG_MODE:-off}`) so the dev image carries zero xdebug overhead
+  until opted in (`-e XDEBUG_MODE=debug,coverage`; xdebug also reads `XDEBUG_MODE`
+  natively). `pcov.enabled` defaults on (idle until a runner collects; don't drive
+  coverage with both pcov and xdebug). spx is dormant until activated; its HTTP UI is
+  gated by `spx.http_key` + `spx.http_ip_whitelist` (keep tight before exposing).
+- **Tests:** `make test-dev[-<image>]` runs the shared `common/goss.dev.yaml` (via
+  `GOSS_FILE`) against the Alpine `-dev` tag - asserts the 5 tools are present, xdebug
+  loads but defaults `off`, and `XDEBUG_MODE` overrides it. (Not yet wired into CI.)
 
 ## Status
 

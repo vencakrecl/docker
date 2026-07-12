@@ -3,26 +3,29 @@
 # dunglas/frankenphp:*-alpine image, set by the Makefile.
 # The base image already ships the Caddy/FrankenPHP entrypoint serving /app/public.
 ARG BASE_IMAGE=dunglas/frankenphp:php8.5-bookworm
-FROM ${BASE_IMAGE}
+FROM ${BASE_IMAGE} AS base
 
 COPY common/helper /usr/local/bin/helper
 # Container health probe (HTTP GET $HEALTHCHECK_PATH, expects 2xx); see HEALTHCHECK.
 COPY common/healthcheck /usr/local/bin/healthcheck
 
-# Optionally build extra PHP extensions at build time (all optional, space-separated):
-#   PHP_EXTENSIONS          docker-php-ext-install names (bundled), e.g. "mysqli gd"
-#   PHP_PECL_EXTENSIONS     PECL packages, e.g. "redis"
-#   PHP_PIE_EXTENSIONS      PIE packages (composer vendor/name), e.g. "xdebug/xdebug"
-#   PHP_EXTENSION_PACKAGES  extra system libs some extensions need (e.g. "libpng-dev"), kept
-# helper install-extensions reads these and adds/removes the pecl/pie build deps itself.
-ARG PHP_EXTENSION_PACKAGES=""
-ARG PHP_EXTENSIONS=""
-ARG PHP_PECL_EXTENSIONS=""
-ARG PHP_PIE_EXTENSIONS=""
-RUN helper install-extensions
+# Default PHP extension set - two per install manager (docker-php-ext, PECL, PIE), all
+# needing no extra system libs. Installed explicitly with `helper`: the pecl/pie build
+# toolchain ($PHPIZE_DEPS + unzip, an image ENV + a package) goes in as a removable group
+# and is dropped afterwards. To *extend* this set, derive from this image and call
+# `helper` in your own Dockerfile (see examples/wordpress) - no build-args, no repo context.
+RUN case "$(helper detect-os)" in \
+      alpine) build_deps="$PHPIZE_DEPS unzip" ;; \
+      debian) build_deps="$PHPIZE_DEPS unzip" ;; \
+    esac \
+ && helper install-build-deps $build_deps \
+ && helper install-docker-ext mysqli bcmath \
+ && helper install-pecl-ext redis-6.3.0 apcu-5.1.28 \
+ && helper install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1 \
+ && helper remove-build-deps
 
 # Shared PHP config; memory_limit is driven by PHP_MEMORY_LIMIT (default in php.ini).
-COPY common/php.ini /usr/local/etc/php/conf.d/zz-common.ini
+COPY common/php.ini ${PHP_INI_DIR}/conf.d/zz-common.ini
 
 # Secure by default: run unprivileged as www-data. SERVER_NAME=:8080 makes
 # FrankenPHP/Caddy serve plain HTTP on a high port (no 443/auto-TLS, no root).
@@ -68,3 +71,29 @@ USER ${SERVER_USER}
 WORKDIR /app
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["healthcheck"]
+
+# --- dev variant (build with --target dev; tag <php>-<os>-dev) ------------------------
+# Layers the dev toolbox onto the lean image: composer + castor (binaries) and the
+# xdebug/pcov/spx extensions (via PIE). xdebug is installed but off by default
+# (XDEBUG_MODE) - see common/dev.ini.
+FROM base AS dev
+USER root
+COPY common/dev.ini ${PHP_INI_DIR}/conf.d/zz-dev.ini
+# The dev extensions' compile headers differ per distro (xdebug -> linux-headers on
+# Alpine; spx -> zlib), so pick the build-deps list per system. unzip is also installed
+# as a *kept* runtime package, so `composer install` can extract packages at runtime.
+RUN helper install-composer \
+ && helper install-castor \
+ && case "$(helper detect-os)" in \
+      alpine) build_deps="$PHPIZE_DEPS unzip linux-headers zlib-dev" runtime_deps="unzip" ;; \
+      debian) build_deps="$PHPIZE_DEPS unzip zlib1g-dev" runtime_deps="unzip" ;; \
+    esac \
+ && helper install-runtime-deps $runtime_deps \
+ && helper install-build-deps $build_deps \
+ && helper install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22 \
+ && helper remove-build-deps
+USER ${SERVER_USER}
+
+# --- default (prod) stage: identical to `base`, kept last so a plain `docker build`
+# with no --target (e.g. the examples' compose) still yields the lean image. ----------
+FROM base AS prod

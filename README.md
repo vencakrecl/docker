@@ -33,6 +33,7 @@ Tag format is `[<version>-]<os>`, where `<os>` is `debian` or `alpine`.
 | Image                                   | Tag format              | Examples                                 |
 |-----------------------------------------|-------------------------|------------------------------------------|
 | `fpm-nginx`, `fpm-apache`, `frankenphp` | `<php-version>-<os>`    | `8.3-debian`, `8.3-alpine`, `8.4-debian` |
+| web images, **dev variant**             | `<php-version>-<os>-dev` | `8.4-alpine-dev`, `8.4-debian-dev` (adds composer, castor, xdebug, pcov, spx) |
 | `dind`                                  | `<docker-version>-rootless` | `29-rootless` (single variant; OS tag is meaningless here) |
 
 ### Architecture
@@ -68,14 +69,14 @@ Dockerfile can `COPY common/helper`.
 |---------|---------|
 | `detect-arch` / `detect-os` | canonical arch (`amd64`/`arm64`) and distro (`debian`/`alpine`) |
 | `set-user-id <user> <uid> [gid]` | change a user's uid/gid (host-user matching) |
-| `install-packages <pkgs...>` | apt-get or apk, with cache cleanup |
+| `install-runtime-deps <pkgs...>` | apt-get or apk, with cache cleanup |
 | `install-s6-overlay` | s6-overlay init/process supervisor |
 | `install-composer` | Composer (sha256-verified) |
 | `install-pie` | PIE, the PHP extension installer |
 | `install-castor` | Castor task runner (static binary) |
-| `install-pie-ext <ext...>` / `install-pie-skip-enable-ext <ext...>` | install PHP extension(s) via PIE, with / without enabling |
-| `install-pecl-ext <ext...>` / `install-pecl-skip-enable-ext <ext...>` | install PHP extension(s) via PECL, with / without enabling |
-| `install-docker-ext <ext...>` / `install-docker-skip-enable-ext <ext...>` | install PHP extension(s) via `docker-php-ext-install`, with / without enabling |
+| `install-pie-ext <ext...>` | install + enable PHP extension(s) via PIE |
+| `install-pecl-ext <ext...>` | install + enable PHP extension(s) via PECL |
+| `install-docker-ext <ext...>` | install + enable PHP extension(s) via `docker-php-ext-install` |
 
 Tool versions are pinned at the top of `common/helper` and overridable via env
 build args, e.g. `--build-arg COMPOSER_VERSION=2.10.2`.

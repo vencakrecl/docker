@@ -1,52 +1,43 @@
-# WordPress on all three web images. Install the core first (from the repo root):
-#   make example-wordpress
+# WordPress on fpm-nginx, built by DERIVING from the fpm-nginx image (see ./Dockerfile).
+# The extra extensions (mysqli, gd) are added downstream with the image's baked-in
+# `helper` - not build-args - which is the intended way to extend these images as a base.
+#
+# From the repo root:
+#   make fpm-nginx-alpine                        # build the base image the Dockerfile derives from
+#   make example-wordpress                        # download WP core into wordpress/app
 #   docker compose -f examples/wordpress/docker-compose.yml up --build -d
-#   curl -L localhost:8081/   # fpm-nginx   (8082 fpm-apache, 8083 frankenphp)
+#   curl -L localhost:8081/
 #   docker compose -f examples/wordpress/docker-compose.yml down
 #
-# WordPress serves from the project root (docroot = /app) and needs a database plus
-# the mysqli + gd extensions (not in the base images). The extensions are built via
-# the images' PHP_EXTENSIONS/PHP_EXTENSION_PACKAGES build args (below), and a MariaDB
-# `db` service is included, so a fresh core reaches the setup wizard.
-#
-# This uses plain WordPress core (not the official `wordpress` image), so there is no
-# entrypoint to generate wp-config.php - complete setup in the browser wizard with:
+# WordPress serves from the project root (docroot = /app) and needs a database, so a
+# MariaDB `db` service is included and a fresh core reaches the setup wizard. This uses
+# plain WordPress core (not the official `wordpress` image), so there is no entrypoint to
+# generate wp-config.php - complete setup in the browser wizard with:
 #   database host=db  name=wordpress  user=wordpress  password=wordpress
 name: example-wordpress
 
-# Build args shared by the three web services: install mysqli (DB) and gd (images).
-x-ext: &ext
-  PHP_EXTENSIONS: "mysqli gd"
-  PHP_EXTENSION_PACKAGES: "libpng-dev"
-
-x-app: &app
-  # PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
-  environment:
-    SERVER_ROOT: /app
-    PHP_MEMORY_LIMIT: 256M
-    PHP_UPLOAD_MAX_FILESIZE: 64M
-    PHP_POST_MAX_SIZE: 128M
-    PHP_MAX_INPUT_VARS: 3000
-    SERVER_TIMEOUT: 300          # web-server backend request timeout (seconds)
-  volumes:
-    - ./app:/app
-  depends_on:
-    - db
-  restart: unless-stopped
-
 services:
   fpm-nginx:
-    <<: *app
-    build: { context: ../.., dockerfile: fpm-nginx/Dockerfile, args: *ext }
+    # Derives from fpm-nginx and adds mysqli + gd (see ./Dockerfile). The build context
+    # is this folder - `helper` is already in the base image, nothing to COPY from the repo.
+    build:
+      context: .
+      # Override the base tag if you built a different PHP version, e.g.:
+      # args: { BASE_IMAGE: fpm-nginx:8.4-alpine }
+    # PHP is tuned via the image's env knobs (common/php.ini), not a mounted php.ini.
+    environment:
+      SERVER_ROOT: /app
+      PHP_MEMORY_LIMIT: 256M
+      PHP_UPLOAD_MAX_FILESIZE: 64M
+      PHP_POST_MAX_SIZE: 128M
+      PHP_MAX_INPUT_VARS: 3000
+      SERVER_TIMEOUT: 300          # web-server backend request timeout (seconds)
+    volumes:
+      - ./app:/app
+    depends_on:
+      - db
     ports: ["8081:8080"]
-  fpm-apache:
-    <<: *app
-    build: { context: ../.., dockerfile: fpm-apache/Dockerfile, args: *ext }
-    ports: ["8082:8080"]
-  frankenphp:
-    <<: *app
-    build: { context: ../.., dockerfile: frankenphp/Dockerfile, args: *ext }
-    ports: ["8083:8080"]
+    restart: unless-stopped
 
   db:
     image: mariadb:11
