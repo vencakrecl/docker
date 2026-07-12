@@ -29,16 +29,14 @@ CACHE  ?=
 USER_ID  ?=
 GROUP_ID ?=
 
-# $(call build,<image>,<base-image>,<tag>[,<target>][,<extra-build-args>])
+# $(call build,<image>,<base-image>,<tag>[,<target>])
 # The optional 4th arg selects a Dockerfile stage (--target); omitted = the default
-# (last) stage, which is the lean prod image. The 5th arg is passed through verbatim
-# (the dev targets use it for --build-arg PHP_PIE_EXTENSIONS/PHP_EXTENSION_PACKAGES).
+# (last) stage, which is the lean prod image. The dev targets pass `dev`.
 BUILDX = docker buildx build $(OUTPUT) $(CACHE) $(if $(PLATFORM),--platform $(PLATFORM))
 define build
 	$(BUILDX) \
 	  --build-arg BASE_IMAGE=$(2) \
 	  $(if $(4),--target $(4)) \
-	  $(5) \
 	  $(if $(USER_ID),--build-arg USER_ID=$(USER_ID)) \
 	  $(if $(GROUP_ID),--build-arg GROUP_ID=$(GROUP_ID)) \
 	  -t $(REGISTRY)$(1):$(3) \
@@ -74,41 +72,33 @@ frankenphp-alpine:
 
 # --- dev variants ------------------------------------------------------------
 # Each web image's Dockerfile has a `dev` stage (--target dev) that layers the dev
-# toolbox onto the lean image: composer, castor, and the xdebug/pcov/spx extensions
-# (installed through the standard install-extensions flow; xdebug off by default, see
-# common/dev.ini). Tag: <php>-<os>-dev.
-#
-# The extension list is shared; the build headers they compile against are distro-
-# specific and, like any PHP_EXTENSION_PACKAGES, kept in the image: Alpine needs
-# linux-headers (xdebug) + zlib-dev (spx); Debian needs zlib1g-dev (spx - its base
-# toolchain already covers xdebug). Override DEV_PIE_EXTENSIONS to change the set/pins.
-DEV_PIE_EXTENSIONS ?= xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22
-DEV_ARGS_alpine = --build-arg PHP_PIE_EXTENSIONS="$(DEV_PIE_EXTENSIONS)" --build-arg PHP_EXTENSION_PACKAGES="linux-headers zlib-dev"
-DEV_ARGS_debian = --build-arg PHP_PIE_EXTENSIONS="$(DEV_PIE_EXTENSIONS)" --build-arg PHP_EXTENSION_PACKAGES="zlib1g-dev"
-
+# toolbox onto the lean image: composer, castor, and the xdebug/pcov/spx extensions.
+# The extension list + its distro-specific build headers are defined in the Dockerfile's
+# `dev` stage (installed via install-extensions; xdebug off by default, see
+# common/dev.ini), so these targets just select the stage. Tag: <php>-<os>-dev.
 .PHONY: dev
 dev: fpm-nginx-dev fpm-apache-dev frankenphp-dev ## Build the dev variants of the web images (both OS)
 
 .PHONY: fpm-nginx-dev fpm-nginx-dev-debian fpm-nginx-dev-alpine
 fpm-nginx-dev: fpm-nginx-dev-debian fpm-nginx-dev-alpine
 fpm-nginx-dev-debian:
-	$(call build,fpm-nginx,php:$(PHP_VERSION)-fpm,$(PHP_VERSION)-debian-dev,dev,$(DEV_ARGS_debian))
+	$(call build,fpm-nginx,php:$(PHP_VERSION)-fpm,$(PHP_VERSION)-debian-dev,dev)
 fpm-nginx-dev-alpine:
-	$(call build,fpm-nginx,php:$(PHP_VERSION)-fpm-alpine,$(PHP_VERSION)-alpine-dev,dev,$(DEV_ARGS_alpine))
+	$(call build,fpm-nginx,php:$(PHP_VERSION)-fpm-alpine,$(PHP_VERSION)-alpine-dev,dev)
 
 .PHONY: fpm-apache-dev fpm-apache-dev-debian fpm-apache-dev-alpine
 fpm-apache-dev: fpm-apache-dev-debian fpm-apache-dev-alpine
 fpm-apache-dev-debian:
-	$(call build,fpm-apache,php:$(PHP_VERSION)-fpm,$(PHP_VERSION)-debian-dev,dev,$(DEV_ARGS_debian))
+	$(call build,fpm-apache,php:$(PHP_VERSION)-fpm,$(PHP_VERSION)-debian-dev,dev)
 fpm-apache-dev-alpine:
-	$(call build,fpm-apache,php:$(PHP_VERSION)-fpm-alpine,$(PHP_VERSION)-alpine-dev,dev,$(DEV_ARGS_alpine))
+	$(call build,fpm-apache,php:$(PHP_VERSION)-fpm-alpine,$(PHP_VERSION)-alpine-dev,dev)
 
 .PHONY: frankenphp-dev frankenphp-dev-debian frankenphp-dev-alpine
 frankenphp-dev: frankenphp-dev-debian frankenphp-dev-alpine
 frankenphp-dev-debian:
-	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-bookworm,$(PHP_VERSION)-debian-dev,dev,$(DEV_ARGS_debian))
+	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-bookworm,$(PHP_VERSION)-debian-dev,dev)
 frankenphp-dev-alpine:
-	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-alpine,$(PHP_VERSION)-alpine-dev,dev,$(DEV_ARGS_alpine))
+	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-alpine,$(PHP_VERSION)-alpine-dev,dev)
 
 # --- dind --------------------------------------------------------------------
 # Rootless dind is Alpine-only upstream, so dind is a single variant. The tag is

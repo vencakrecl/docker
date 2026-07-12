@@ -75,16 +75,22 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["hea
 FROM base AS dev
 USER root
 # Dev tooling: composer + castor (binaries), then the dev extensions (xdebug/pcov/spx)
-# via the same install-extensions flow as the base image. The Makefile's dev targets
-# pass the extension list (PHP_PIE_EXTENSIONS) and the distro's build headers
-# (PHP_EXTENSION_PACKAGES); all four ARGs are overridable at build time.
+# via the same install-extensions flow as the base image. All four ARGs are overridable
+# at build time; the defaults below are the standard dev set (PIE names, pinned). Their
+# compile headers are distro-specific (Alpine needs linux-headers for xdebug + zlib-dev
+# for spx; Debian needs zlib1g-dev for spx - its base toolchain covers xdebug), so they
+# are installed by detecting the distro rather than via a static PHP_EXTENSION_PACKAGES.
 ARG PHP_EXTENSION_PACKAGES=""
 ARG PHP_EXTENSIONS=""
 ARG PHP_PECL_EXTENSIONS=""
-ARG PHP_PIE_EXTENSIONS=""
+ARG PHP_PIE_EXTENSIONS="xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22"
 COPY common/dev.ini /usr/local/etc/php/conf.d/zz-dev.ini
 RUN helper install-composer \
  && helper install-castor \
+ && case "$(helper detect-os)" in \
+      alpine) helper install-packages linux-headers zlib-dev ;; \
+      debian) helper install-packages zlib1g-dev ;; \
+    esac \
  && helper install-extensions
 USER ${SERVER_USER}
 

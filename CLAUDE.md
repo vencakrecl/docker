@@ -356,19 +356,18 @@ and **spx** extensions. Not applied to `dind` (not a PHP image).
 - **Extensions via the same flow as prod.** The `dev` stage carries the same four
   extension ARGs + `RUN helper install-extensions` as the base image (plus
   `install-composer`/`install-castor`), so there is no dev-specific helper command. The
-  extensions are installed through **PIE** (composer `vendor/name:constraint`); the list
-  is defined *once* in the **Makefile** (`DEV_PIE_EXTENSIONS`, default
-  `xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22`) and passed to
-  the dev targets as `PHP_PIE_EXTENSIONS` - override that var, or pass any of the four
-  ARGs via `--build-arg`. pcov has no native PIE package, so it uses PIE's `pecl/` bridge
-  (`pecl/pcov`); xdebug and spx have native PIE packages.
-- **Build headers are distro-specific and kept.** xdebug and spx compile, and
-  `install-extensions` only adds `$PHPIZE_DEPS`+`unzip` as *removable* build-deps - the
-  system headers they need come via `PHP_EXTENSION_PACKAGES` (kept, like any runtime
-  lib), which the Makefile sets per distro: Alpine `linux-headers zlib-dev`, Debian
-  `zlib1g-dev` (its base toolchain covers xdebug). So the `-dev` images retain those
-  headers (a minor size cost, fine for dev - and consistent with the prod extension
-  contract). Verified: all three extensions load.
+  extensions install through **PIE** (composer `vendor/name:constraint`); the pinned
+  default list is set right in each Dockerfile's `dev` stage as the `PHP_PIE_EXTENSIONS`
+  ARG default (`xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22`) -
+  override any of the four ARGs via `--build-arg`. pcov has no native PIE package, so it
+  uses PIE's `pecl/` bridge (`pecl/pcov`); xdebug and spx have native PIE packages.
+- **Build headers via distro detection.** xdebug and spx compile, and `install-extensions`
+  only adds `$PHPIZE_DEPS`+`unzip` as *removable* build-deps - the system headers they
+  need are distro-specific, so the `dev` stage's `RUN` branches on `helper detect-os`
+  and installs them (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`; the base
+  toolchain covers xdebug on Debian). They are kept (a minor size cost, fine for dev).
+  Each `dev` stage is therefore self-contained - `docker build --target dev` works
+  without the Makefile. Verified: all three extensions load.
 - **Config (`common/dev.ini` -> `conf.d/zz-dev.ini`)** tunes the three extensions,
   env-overridable like the shared php.ini. **xdebug is off by default**
   (`xdebug.mode = ${XDEBUG_MODE:-off}`) so the dev image carries zero xdebug overhead
