@@ -63,20 +63,15 @@ See `README.md` for the authoritative scheme. Summary:
 - `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
 - `install-pie` -> PIE phar to `/usr/local/bin/pie` (needs PHP at runtime)
 - `install-castor` -> Castor static binary to `/usr/local/bin/castor`
-Each tool has an enabling and a non-enabling variant; every arg is an extension
-(multiple allowed):
+Each installs + enables the extension(s); every arg is an extension name (multiple
+allowed):
 
-- `install-pie-ext` / `install-pie-skip-enable-ext` -> `pie install`
-  (composer-style `vendor/ext` names)
-- `install-pecl-ext` / `install-pecl-skip-enable-ext` -> `pecl install`
-  (the enabling variant also runs `docker-php-ext-enable`)
-- `install-docker-ext` / `install-docker-skip-enable-ext` -> `docker-php-ext-install`
+- `install-pie-ext` -> `pie install` (composer-style `vendor/ext` names)
+- `install-pecl-ext` -> `pecl install` (then `docker-php-ext-enable`)
+- `install-docker-ext` -> `docker-php-ext-install`
 
-How "skip enable" is implemented differs per tool: pie has a native
-`--skip-enable-extension` flag; pecl simply omits the enable call; docker removes
-the generated `conf.d/docker-php-ext-<ext>.ini` (docker-php-ext-install always
-enables). Build/runtime deps ($PHPIZE_DEPS, `-dev` libs) are the caller's
-responsibility, as in the official php image docs.
+Build/runtime deps ($PHPIZE_DEPS, `-dev` libs) are the caller's responsibility, as in
+the official php image docs.
 
 Pinning an extension version (the token is passed straight through):
 - pecl: `redis-6.1.0` (name-version). The enable step strips the version.

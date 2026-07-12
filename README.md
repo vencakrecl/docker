@@ -74,9 +74,9 @@ Dockerfile can `COPY common/helper`.
 | `install-composer` | Composer (sha256-verified) |
 | `install-pie` | PIE, the PHP extension installer |
 | `install-castor` | Castor task runner (static binary) |
-| `install-pie-ext <ext...>` / `install-pie-skip-enable-ext <ext...>` | install PHP extension(s) via PIE, with / without enabling |
-| `install-pecl-ext <ext...>` / `install-pecl-skip-enable-ext <ext...>` | install PHP extension(s) via PECL, with / without enabling |
-| `install-docker-ext <ext...>` / `install-docker-skip-enable-ext <ext...>` | install PHP extension(s) via `docker-php-ext-install`, with / without enabling |
+| `install-pie-ext <ext...>` | install + enable PHP extension(s) via PIE |
+| `install-pecl-ext <ext...>` | install + enable PHP extension(s) via PECL |
+| `install-docker-ext <ext...>` | install + enable PHP extension(s) via `docker-php-ext-install` |
 
 Tool versions are pinned at the top of `common/helper` and overridable via env
 build args, e.g. `--build-arg COMPOSER_VERSION=2.10.2`.
