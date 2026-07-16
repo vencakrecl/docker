@@ -36,7 +36,7 @@
 # `make bump-digests` to refresh the matching *_SHA256 below. gcloud and azure-cli have no
 # standard Renovate datasource - scripts/deps.sh reports those instead.
 # renovate: datasource=github-releases depName=just-containers/s6-overlay versioning=loose
-S6_OVERLAY_VERSION="${S6_OVERLAY_VERSION:-3.2.3.1}"
+S6_OVERLAY_VERSION="${S6_OVERLAY_VERSION:-3.2.3.2}"
 # renovate: datasource=github-releases depName=composer/composer
 COMPOSER_VERSION="${COMPOSER_VERSION:-2.10.2}"
 # renovate: datasource=github-releases depName=php/pie
@@ -53,9 +53,9 @@ AZURE_CLI_VERSION="${AZURE_CLI_VERSION:-2.88.0}"
 # *_SHA256 fails verification by design - update both together (they are env-overridable).
 # Azure CLI installs via pip and is version-pinned only (hash-pinning every transitive dep
 # is impractical); AWS CLI is an apk package (verified by apk's repo signature).
-S6_OVERLAY_SHA256_NOARCH="${S6_OVERLAY_SHA256_NOARCH:-43d99d266fefe32cdc1510963aaadeb211cc8450b60af27817b64af450c934be}"
-S6_OVERLAY_SHA256_AMD64="${S6_OVERLAY_SHA256_AMD64:-ed72fdb3abf196472d121b026bed63b46f3443507bd2ce67df6bd187f7d4dc0a}"
-S6_OVERLAY_SHA256_ARM64="${S6_OVERLAY_SHA256_ARM64:-c79b5cc7e5e405f6e1ae1466a8160ac84d29b86614e1e01ff0fb11dc832fee1b}"
+S6_OVERLAY_SHA256_NOARCH="${S6_OVERLAY_SHA256_NOARCH:-5379750ed30a84bbd2e2dd74847ba6b5bd29cd0b2e3ea2ec58049b57eb2eda12}"
+S6_OVERLAY_SHA256_AMD64="${S6_OVERLAY_SHA256_AMD64:-e6befcc96a437a3831386ecfc51808c5d3e939dc5fe3c02ae9284599e8aa2408}"
+S6_OVERLAY_SHA256_ARM64="${S6_OVERLAY_SHA256_ARM64:-b17f17a82e7a515c682a91edaf2ffdabb73f891981b6c1fd712115693a2f8b4c}"
 COMPOSER_SHA256="${COMPOSER_SHA256:-5ee7125f8a30a34d246cefdc0bc85b8a783b28f2aec968994118512350d28027}"
 PIE_SHA256="${PIE_SHA256:-ef9f19c2698334aa8ce8fc458c8cf2a31a2fd6a29230216dbde3422343cf952d}"
 CASTOR_SHA256_AMD64="${CASTOR_SHA256_AMD64:-6ba05579ca9f6546a22421e935fdab0f7d9e774cb05a25b10fe9f9528e1ab30a}"
