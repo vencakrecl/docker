@@ -1,4 +1,4 @@
-name: deps-check
+name: Deps Check
 
 # Weekly freshness check for the hand-pinned tools that Renovate/Dependabot can't fully
 # manage (gcloud, azure-cli) plus a cross-check of the Renovate-managed ones. Reports via
