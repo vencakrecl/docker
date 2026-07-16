@@ -186,15 +186,15 @@ test-dev-frankenphp: frankenphp-dev-alpine
 	cd frankenphp && $(DGOSS) $(REGISTRY)frankenphp:$(PHP_VERSION)-alpine-dev
 
 # --- dependencies ------------------------------------------------------------
-# Freshness check + digest refresh for the hand-pinned tools (scripts/deps.sh). Renovate
+# Freshness check + digest refresh for the hand-pinned tools (common/deps.sh). Renovate
 # opens the version-bump PRs (.github/renovate.json); after a bump, run `make bump-digests`.
 .PHONY: check-deps
 check-deps: ## Report pinned vs latest upstream for every hand-pinned tool
-	@bash scripts/deps.sh check
+	@bash common/deps.sh check
 
 .PHONY: bump-digests
 bump-digests: ## Recompute *_SHA256 for the currently-pinned tool versions (TOOLS="s6 composer ...")
-	@bash scripts/deps.sh refresh-digests $(TOOLS)
+	@bash common/deps.sh refresh-digests $(TOOLS)
 
 .PHONY: help
 help: ## List the available targets

@@ -24,7 +24,7 @@ jobs:
         id: check
         run: |
           set +e
-          out=$(bash scripts/deps.sh check)
+          out=$(bash common/deps.sh check)
           code=$?
           echo "$out"
           {
