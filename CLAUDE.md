@@ -401,9 +401,15 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
 
 - `fpm-nginx`, `fpm-apache`: `php:*-fpm[-alpine]` base + web server installed via
   the helper. PID 1 is s6-overlay (`ENTRYPOINT ["/init"]`, installed by
-  `helper install-s6-overlay`). Services are s6-rc.d longruns under
-  `<image>/s6-rc.d/` (php-fpm + the web server), COPYed into
-  `/etc/s6-overlay/s6-rc.d`. php-fpm's run script uses `#!/command/with-contenv sh`
+  `helper install-s6-overlay`). The whole s6 config tree lives under `<image>/etc/`
+  mirroring the container (`etc/s6-overlay/{s6-rc.d,user-bundles.d}`) and is installed
+  with a single `COPY <image>/etc /etc`. Services are s6-rc.d longruns under
+  `etc/s6-overlay/s6-rc.d/` (php-fpm + the web server) and are registered into the
+  `user` bundle via empty files under `etc/s6-overlay/user-bundles.d/user/contents.d/`,
+  **not** the older `s6-rc.d/user/contents.d/`: s6-overlay 3.2.3.1 made an in-`s6-rc.d`
+  `user` bundle without a `type` file a fatal `s6-rc-compile` error (`unable to read
+  .../user/type`) - services never start, so the container refuses connections while
+  `php`/`php-fpm -tt` still work. php-fpm's run script uses `#!/command/with-contenv sh`
   so `${PHP_MEMORY_LIMIT}` still reaches it at runtime.
   php-fpm listens on 127.0.0.1:9000. Note: setting `ENTRYPOINT` reset the base
   image's inherited `CMD ["php-fpm"]` to empty, so /init runs only the services.

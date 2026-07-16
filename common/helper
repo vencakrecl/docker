@@ -36,14 +36,14 @@
 # `make bump-digests` to refresh the matching *_SHA256 below. gcloud and azure-cli have no
 # standard Renovate datasource - scripts/deps.sh reports those instead.
 # renovate: datasource=github-releases depName=just-containers/s6-overlay versioning=loose
-S6_OVERLAY_VERSION="${S6_OVERLAY_VERSION:-3.2.3.0}"
+S6_OVERLAY_VERSION="${S6_OVERLAY_VERSION:-3.2.3.1}"
 # renovate: datasource=github-releases depName=composer/composer
 COMPOSER_VERSION="${COMPOSER_VERSION:-2.10.2}"
 # renovate: datasource=github-releases depName=php/pie
 PIE_VERSION="${PIE_VERSION:-1.4.8}"
 # renovate: datasource=github-releases depName=jolicode/castor
 CASTOR_VERSION="${CASTOR_VERSION:-1.6.1}"
-GCLOUD_VERSION="${GCLOUD_VERSION:-575.0.1}"
+GCLOUD_VERSION="${GCLOUD_VERSION:-576.0.0}"
 AZURE_CLI_VERSION="${AZURE_CLI_VERSION:-2.88.0}"
 
 # SHA256 digests for the downloaded artifacts, pinned here so verification never trusts a
@@ -53,15 +53,15 @@ AZURE_CLI_VERSION="${AZURE_CLI_VERSION:-2.88.0}"
 # *_SHA256 fails verification by design - update both together (they are env-overridable).
 # Azure CLI installs via pip and is version-pinned only (hash-pinning every transitive dep
 # is impractical); AWS CLI is an apk package (verified by apk's repo signature).
-S6_OVERLAY_SHA256_NOARCH="${S6_OVERLAY_SHA256_NOARCH:-b720f9d9340efc8bb07528b9743813c836e4b02f8693d90241f047998b4c53cf}"
-S6_OVERLAY_SHA256_AMD64="${S6_OVERLAY_SHA256_AMD64:-a93f02882c6ed46b21e7adb5c0add86154f01236c93cd82c7d682722e8840563}"
-S6_OVERLAY_SHA256_ARM64="${S6_OVERLAY_SHA256_ARM64:-0952056ff913482163cc30e35b2e944b507ba1025d78f5becbb89367bf344581}"
+S6_OVERLAY_SHA256_NOARCH="${S6_OVERLAY_SHA256_NOARCH:-43d99d266fefe32cdc1510963aaadeb211cc8450b60af27817b64af450c934be}"
+S6_OVERLAY_SHA256_AMD64="${S6_OVERLAY_SHA256_AMD64:-ed72fdb3abf196472d121b026bed63b46f3443507bd2ce67df6bd187f7d4dc0a}"
+S6_OVERLAY_SHA256_ARM64="${S6_OVERLAY_SHA256_ARM64:-c79b5cc7e5e405f6e1ae1466a8160ac84d29b86614e1e01ff0fb11dc832fee1b}"
 COMPOSER_SHA256="${COMPOSER_SHA256:-5ee7125f8a30a34d246cefdc0bc85b8a783b28f2aec968994118512350d28027}"
 PIE_SHA256="${PIE_SHA256:-ef9f19c2698334aa8ce8fc458c8cf2a31a2fd6a29230216dbde3422343cf952d}"
 CASTOR_SHA256_AMD64="${CASTOR_SHA256_AMD64:-6ba05579ca9f6546a22421e935fdab0f7d9e774cb05a25b10fe9f9528e1ab30a}"
 CASTOR_SHA256_ARM64="${CASTOR_SHA256_ARM64:-9c0aa9827e99214a8a244dc41ea94eae651b979e852167f871799c5f22f1e2b7}"
-GCLOUD_SHA256_AMD64="${GCLOUD_SHA256_AMD64:-38198fa76b1aa64a332fadca7dba45f96c6dbb5cd9e77f173f9d6a65443e37ab}"
-GCLOUD_SHA256_ARM64="${GCLOUD_SHA256_ARM64:-e5c3a354d4c5775eccede626746547d6d3dc3f59db350f62f05dbc604eec5e3f}"
+GCLOUD_SHA256_AMD64="${GCLOUD_SHA256_AMD64:-7094a08e8fc3772cdbfb1a8a1920300f52fec5e370c9f9c803c2a3c8824a32c2}"
+GCLOUD_SHA256_ARM64="${GCLOUD_SHA256_ARM64:-be6077ade7b08312a250b49b5838473253c52e25358c63cfb2cfb4095503b5f2}"
 
 set -eu
 

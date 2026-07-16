@@ -35,7 +35,7 @@ ARG SERVER_USER=www-data
 ENV SERVER_USER=${SERVER_USER}
 
 COPY fpm-nginx/nginx.conf /etc/nginx/nginx.conf.template
-COPY fpm-nginx/s6-rc.d /etc/s6-overlay/s6-rc.d
+COPY fpm-nginx/etc /etc
 
 COPY common/index.php ${SERVER_ROOT}/index.php
 ENV HEALTHCHECK_PATH=/healthz
