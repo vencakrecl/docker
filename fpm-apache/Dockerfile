@@ -37,6 +37,7 @@ COPY fpm-apache/alpine.conf /etc/apache2/conf.d/zz-fpm.conf
 COPY fpm-apache/debian.conf /etc/apache2/conf-enabled/zz-fpm.conf
 COPY fpm-apache/ports.conf /etc/apache2/ports.conf
 COPY fpm-apache/s6-rc.d /etc/s6-overlay/s6-rc.d
+COPY fpm-apache/user-bundles.d /etc/s6-overlay/user-bundles.d
 
 # Debian: enable modules + drop stock sites (port/vhost come from the COPYed files above).
 # Alpine: alpine.conf carries the config, but httpd.conf hardcodes `Listen 80` + a file
