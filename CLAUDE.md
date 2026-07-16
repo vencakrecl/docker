@@ -126,12 +126,12 @@ aren't tracked ecosystems):
   (annotated with `# renovate:` comments in `common/helper`) and goss (in `ci.yml`), via a
   custom regex manager keyed off those comments. It cannot recompute artifact digests, so a
   bump PR carries a note to run `make bump-digests` (CI fails closed on the stale digest otherwise).
-- **`scripts/deps.sh`** (`make check-deps` / `make bump-digests`): `check` reports pinned-vs-latest
+- **`common/deps.sh`** (`make check-deps` / `make bump-digests`): `check` reports pinned-vs-latest
   for every tool incl. gcloud + azure-cli (which have no standard Renovate datasource);
   `refresh-digests [tool...]` re-fetches each artifact at its currently-pinned version and rewrites
   the matching `*_SHA256` in `common/helper` / `ci.yml` (uses `cat >` not `mv` so `helper`'s 0755
   mode survives). "Verify digests" = `refresh-digests` + `git diff --exit-code`.
-- **`.github/workflows/deps-check.yml`** runs `deps.sh check` weekly (Mon 06:00 UTC) and opens/updates
+- **`.github/workflows/deps-check.yml`** runs `common/deps.sh check` weekly (Mon 06:00 UTC) and opens/updates
   a single `Outdated pinned dependencies` issue via `gh` when anything is behind (`exit 3`).
 - Base-image tags (`PHP_VERSION`/`DOCKER_VERSION`) are intentionally not automated: they're policy
   floors, and OS security patches arrive on every rebuild since the `FROM` tags aren't digest-pinned.
