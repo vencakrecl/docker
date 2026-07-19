@@ -1,0 +1,15 @@
+#!/bin/sh
+# Print canonical arch: amd64 | arm64 (from uname -m).
+# Usage: jarvis-detect-arch
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+case "$(uname -m)" in
+    x86_64 | amd64) echo amd64 ;;
+    aarch64 | arm64) echo arm64 ;;
+    *) echo "$me: unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+esac

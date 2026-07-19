@@ -1,0 +1,28 @@
+#!/bin/sh
+# Install PIE (PHP ext installer) to /usr/local/bin/pie (sha256-verified; needs PHP).
+# Usage: jarvis-install-pie
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+# renovate: datasource=github-releases depName=php/pie
+PIE_VERSION="${PIE_VERSION:-1.4.8}"
+PIE_SHA256="${PIE_SHA256:-ef9f19c2698334aa8ce8fc458c8cf2a31a2fd6a29230216dbde3422343cf952d}"
+
+# _fetch <url> <dest> - download, bootstrapping curl + CA certs first if missing.
+_fetch() {
+    command -v curl >/dev/null 2>&1 || jarvis-install-runtime-deps ca-certificates curl
+    curl -fsSL "$1" -o "$2"
+}
+
+tmp="$(mktemp -d)"
+_fetch "https://github.com/php/pie/releases/download/${PIE_VERSION}/pie.phar" "$tmp/pie.phar"
+jarvis-verify-sha256 "$tmp/pie.phar" "$PIE_SHA256"
+install -m 0755 "$tmp/pie.phar" /usr/local/bin/pie
+rm -rf "$tmp"
+
+# report installed version (or fail loudly via set -e if it can't run)
+echo "$me: installed $(pie --version)"

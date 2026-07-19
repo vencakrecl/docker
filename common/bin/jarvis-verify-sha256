@@ -1,0 +1,17 @@
+#!/bin/sh
+# Fail unless <file>'s sha256 equals <sha256>.
+# Usage: jarvis-verify-sha256 <file> <sha256>
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <file> <sha256>"; exit 0 ;; esac
+[ "$#" -eq 2 ] || { echo "usage: $me <file> <sha256>" >&2; exit 2; }
+
+got="$(sha256sum "$1" | cut -d' ' -f1)"
+if [ "$got" = "$2" ]; then
+    echo "$me: ok $1"
+    exit 0
+fi
+echo "$me: checksum mismatch for $1 (want $2, got $got)" >&2
+exit 1

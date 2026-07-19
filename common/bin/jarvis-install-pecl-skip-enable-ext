@@ -1,0 +1,15 @@
+#!/bin/sh
+# Install PHP extension(s) via PECL without enabling.
+# Usage: jarvis-install-pecl-skip-enable-ext <ext>...
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <ext>..."; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "usage: $me <ext>..." >&2; exit 2; }
+
+for ext in "$@"; do
+    pecl install "$ext"
+done
+
+echo "$me: installed (not enabled) $*"

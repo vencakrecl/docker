@@ -1,0 +1,15 @@
+#!/bin/sh
+# Install AWS CLI (apk aws-cli; Alpine only, tracks the Alpine repo).
+# Usage: jarvis-install-aws-cli
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+# AWS CLI v2 from the Alpine community repo (musl build); version tracks the base
+# image's Alpine release (AWS ships no musl v2 installer to pin individually).
+jarvis-install-runtime-deps aws-cli
+
+echo "$me: installed $(aws --version 2>&1)"

@@ -1,5 +1,5 @@
 # WordPress on fpm-nginx, built by DERIVING from the fpm-nginx image (see ./Dockerfile).
-# The extra extension (gd) is added downstream with the image's baked-in `helper` - not
+# The extra extension (gd) is added downstream with the image's baked-in `jarvis-*` commands - not
 # build-args - which is the intended way to extend these images as a base (mysqli is
 # already a base default).
 #
@@ -20,7 +20,7 @@ name: example-wordpress
 services:
   fpm-nginx:
     # Derives from fpm-nginx and adds gd (see ./Dockerfile). The build context
-    # is this folder - `helper` is already in the base image, nothing to COPY from the repo.
+    # is this folder - the `jarvis-*` commands are already in the base image, nothing to COPY from the repo.
     build:
       context: .
       # Override the base tag if you built a different PHP version, e.g.:

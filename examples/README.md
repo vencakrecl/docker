@@ -52,11 +52,11 @@ container (no host PHP/Composer needed). Symfony/Laravel/Nette use ports 8081/80
 
 The images ship a default extension set (`mysqli bcmath redis apcu ext-ds
 ext-opentelemetry`) on top of the stock `php:*-fpm` extensions. When an app needs more,
-the intended way is to **derive from the image** and add them with the baked-in `helper`
-- no repo build context, no build-args, no rebuilding the base from source. **WordPress
-demonstrates this**: `wordpress/Dockerfile` is `FROM fpm-nginx:<tag>` + `helper
-install-docker-ext gd` (mysqli is already a base default; see the root README/CLAUDE.md
-for the `helper` commands). Build the base first
+the intended way is to **derive from the image** and add them with the baked-in
+`jarvis-*` commands - no repo build context, no build-args, no rebuilding the base from
+source. **WordPress demonstrates this**: `wordpress/Dockerfile` is `FROM fpm-nginx:<tag>`
++ `jarvis-install-docker-ext gd` (mysqli is already a base default; see the root
+README/CLAUDE.md for the `jarvis-*` commands). Build the base first
 (`make fpm-nginx-alpine`), then `docker compose -f examples/wordpress/docker-compose.yml up
 --build`.
 

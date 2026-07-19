@@ -1,0 +1,17 @@
+#!/bin/sh
+# Install + enable PHP extension(s) via PIE (composer-style vendor/ext names).
+# Usage: jarvis-install-pie-ext <ext>...
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <ext>..."; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "usage: $me <ext>..." >&2; exit 2; }
+
+# Installs the PIE binary first (via jarvis-install-pie) if not already present.
+command -v pie >/dev/null 2>&1 || jarvis-install-pie
+for ext in "$@"; do
+    pie install "$ext"
+done
+
+echo "$me: installed $*"

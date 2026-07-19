@@ -1,0 +1,16 @@
+#!/bin/sh
+# Change an existing user's uid/gid (host-uid match). Run before the image's chown -R.
+# Usage: jarvis-set-user-id <user> <uid> [gid]
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <user> <uid> [gid]"; exit 0 ;; esac
+[ "$#" -ge 2 ] || { echo "usage: $me <user> <uid> [gid]" >&2; exit 2; }
+
+# Edits /etc/passwd + /etc/group directly (distro-agnostic; Alpine has no usermod).
+user="$1"; uid="$2"; gid="${3:-$2}"
+sed -i "s/^${user}:x:[0-9]*:[0-9]*:/${user}:x:${uid}:${gid}:/" /etc/passwd
+sed -i "s/^${user}:x:[0-9]*:/${user}:x:${gid}:/" /etc/group
+
+echo "$me: ${user} -> ${uid}:${gid}"

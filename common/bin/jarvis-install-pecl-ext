@@ -1,0 +1,17 @@
+#!/bin/sh
+# Install + enable PHP extension(s) via PECL.
+# Usage: jarvis-install-pecl-ext <ext>...
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <ext>..."; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "usage: $me <ext>..." >&2; exit 2; }
+
+# Specs may carry a version (e.g. redis-6.0.2); the bare name is enabled.
+for ext in "$@"; do
+    pecl install "$ext"
+    docker-php-ext-enable "${ext%%-[0-9]*}"
+done
+
+echo "$me: installed $*"

@@ -5,23 +5,23 @@ ARG BASE_IMAGE=php:8.5-fpm
 FROM ${BASE_IMAGE} AS base
 
 ###> RUNTIME DEPS
-COPY common/helper /usr/local/bin/helper
+COPY common/bin/ /usr/local/bin/
 COPY common/healthcheck /usr/local/bin/healthcheck
-RUN helper install-runtime-deps apache2 \
- && if [ "$(helper detect-os)" = alpine ]; then helper install-runtime-deps apache2-proxy apache2-brotli; fi \
- && helper install-s6-overlay
+RUN jarvis-install-runtime-deps apache2 \
+ && if [ "$(jarvis-detect-os)" = alpine ]; then jarvis-install-runtime-deps apache2-proxy apache2-brotli; fi \
+ && jarvis-install-s6-overlay
 ###< RUNTIME DEPS
 
 ###> PHP EXTENSIONS
-RUN case "$(helper detect-os)" in \
+RUN case "$(jarvis-detect-os)" in \
       alpine) build_deps="$PHPIZE_DEPS unzip" ;; \
       debian) build_deps="$PHPIZE_DEPS unzip" ;; \
     esac \
- && helper install-build-deps $build_deps \
- && helper install-docker-ext mysqli bcmath \
- && helper install-pecl-ext redis-6.3.0 apcu-5.1.28 \
- && helper install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1 \
- && helper remove-build-deps
+ && jarvis-install-build-deps $build_deps \
+ && jarvis-install-docker-ext mysqli bcmath \
+ && jarvis-install-pecl-ext redis-6.3.0 apcu-5.1.28 \
+ && jarvis-install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1 \
+ && jarvis-remove-build-deps
 ###< PHP EXTENSIONS
 
 ###> SERVER SETTINGS
@@ -42,7 +42,7 @@ COPY fpm-apache/etc /etc
 # Alpine: alpine.conf carries the config, but httpd.conf hardcodes `Listen 80` + a file
 # `CustomLog` inline - both accumulate, so no include overrides them; comment them out.
 RUN set -eux; \
-    case "$(helper detect-os)" in \
+    case "$(jarvis-detect-os)" in \
       debian) \
         a2enmod proxy proxy_fcgi rewrite setenvif deflate brotli filter; \
         a2dissite 000-default 2>/dev/null || true; \
@@ -66,7 +66,7 @@ COPY common/php-fpm.conf /usr/local/etc/php-fpm.d/zzz-common.conf
 ###> NON-ROOT USER
 ARG USER_ID
 ARG GROUP_ID
-RUN if [ -n "$USER_ID" ]; then helper set-user-id "$SERVER_USER" "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
+RUN if [ -n "$USER_ID" ]; then jarvis-set-user-id "$SERVER_USER" "$USER_ID" "${GROUP_ID:-$USER_ID}"; fi
 
 RUN chown -R "$SERVER_USER:$SERVER_USER" /run /var/www/html 2>/dev/null || true
 
@@ -89,16 +89,16 @@ FROM base AS dev
 USER root
 
 ###> PHP EXTENSIONS
-RUN helper install-composer \
- && helper install-castor \
- && case "$(helper detect-os)" in \
+RUN jarvis-install-composer \
+ && jarvis-install-castor \
+ && case "$(jarvis-detect-os)" in \
       alpine) build_deps="$PHPIZE_DEPS unzip libtool linux-headers zlib-dev" runtime_deps="unzip" ;; \
       debian) build_deps="$PHPIZE_DEPS unzip libtool zlib1g-dev" runtime_deps="unzip" ;; \
     esac \
- && helper install-runtime-deps $runtime_deps \
- && helper install-build-deps $build_deps \
- && helper install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22 \
- && helper remove-build-deps
+ && jarvis-install-runtime-deps $runtime_deps \
+ && jarvis-install-build-deps $build_deps \
+ && jarvis-install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22 \
+ && jarvis-remove-build-deps
 ###< PHP EXTENSIONS
 
 ###> PHP & FPM CONFIGURATION

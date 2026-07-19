@@ -2,7 +2,7 @@
 # Dockerfile references its base via `FROM ${BASE_IMAGE}` (the Makefile owns the
 # tag), and Dependabot's docker ecosystem cannot resolve ARG-interpolated FROM
 # lines (dependabot/dependabot-core#2057, #4597, #10190), so a `docker` entry
-# would find nothing. Pinned tool versions in common/helper aren't a tracked
+# would find nothing. Pinned tool versions in the common/bin/jarvis-* commands aren't a tracked
 # ecosystem either. Bump those by hand.
 version: 2
 updates:

@@ -1,0 +1,13 @@
+#!/bin/sh
+# Install + enable PHP extension(s) via docker-php-ext-install.
+# Usage: jarvis-install-docker-ext <ext>...
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <ext>..."; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "usage: $me <ext>..." >&2; exit 2; }
+
+docker-php-ext-install -j"$(nproc 2>/dev/null || echo 1)" "$@"
+
+echo "$me: installed $*"

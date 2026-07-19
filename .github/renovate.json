@@ -10,9 +10,12 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Tool versions pinned in common/helper and ci.yml (annotated with `# renovate:`)",
+      "description": "Tool versions pinned in the common/bin/jarvis-install-* commands and ci.yml (annotated with `# renovate:`)",
       "managerFilePatterns": [
-        "common/helper",
+        "common/bin/jarvis-install-s6-overlay",
+        "common/bin/jarvis-install-composer",
+        "common/bin/jarvis-install-pie",
+        "common/bin/jarvis-install-castor",
         ".github/workflows/ci.yml"
       ],
       "matchStrings": [
@@ -24,12 +27,12 @@
   ],
   "packageRules": [
     {
-      "description": "After a helper/goss version bump, the matching *_SHA256 must be refreshed with `make bump-digests` (Renovate cannot recompute artifact digests).",
+      "description": "After a jarvis/goss version bump, the matching *_SHA256 must be refreshed with `make bump-digests` (Renovate cannot recompute artifact digests).",
       "matchManagers": [
         "custom.regex"
       ],
       "prBodyNotes": [
-        ":warning: This bumps a version only. Run `make bump-digests` and commit the refreshed `*_SHA256` (in `common/helper`) / `GOSS_SHA256_*` (in `.github/workflows/ci.yml`), or CI will fail closed on the checksum mismatch. For gcloud/azure-cli see `common/deps.sh`."
+        ":warning: This bumps a version only. Run `make bump-digests` and commit the refreshed `*_SHA256` (in the matching `common/bin/jarvis-install-*` command) / `GOSS_SHA256_*` (in `.github/workflows/ci.yml`), or CI will fail closed on the checksum mismatch. For gcloud/azure-cli see `common/deps.sh`."
       ]
     }
   ]

@@ -1,0 +1,43 @@
+#!/bin/sh
+# Install s6-overlay (process supervisor / init); noarch + per-arch tarballs, sha256-verified.
+# Usage: jarvis-install-s6-overlay
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+# renovate: datasource=github-releases depName=just-containers/s6-overlay versioning=loose
+S6_OVERLAY_VERSION="${S6_OVERLAY_VERSION:-3.2.3.2}"
+S6_OVERLAY_SHA256_NOARCH="${S6_OVERLAY_SHA256_NOARCH:-5379750ed30a84bbd2e2dd74847ba6b5bd29cd0b2e3ea2ec58049b57eb2eda12}"
+S6_OVERLAY_SHA256_AMD64="${S6_OVERLAY_SHA256_AMD64:-e6befcc96a437a3831386ecfc51808c5d3e939dc5fe3c02ae9284599e8aa2408}"
+S6_OVERLAY_SHA256_ARM64="${S6_OVERLAY_SHA256_ARM64:-b17f17a82e7a515c682a91edaf2ffdabb73f891981b6c1fd712115693a2f8b4c}"
+
+# _fetch <url> <dest> - download, bootstrapping curl + CA certs first if missing.
+_fetch() {
+    command -v curl >/dev/null 2>&1 || jarvis-install-runtime-deps ca-certificates curl
+    curl -fsSL "$1" -o "$2"
+}
+
+case "$(jarvis-detect-arch)" in
+    amd64) s6arch=x86_64;  archsum="$S6_OVERLAY_SHA256_AMD64" ;;
+    arm64) s6arch=aarch64; archsum="$S6_OVERLAY_SHA256_ARM64" ;;
+esac
+# .tar.xz extraction needs xz (busybox tar shells out to it).
+case "$(jarvis-detect-os)" in
+    alpine) jarvis-install-runtime-deps xz ;;
+    debian) jarvis-install-runtime-deps xz-utils ;;
+esac
+base="https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}"
+tmp="$(mktemp -d)"
+# Verify each tarball against its pinned digest (not a same-origin sidecar) before extracting.
+for asset in "noarch:$S6_OVERLAY_SHA256_NOARCH" "$s6arch:$archsum"; do
+    name="${asset%%:*}"; want="${asset#*:}"
+    _fetch "$base/s6-overlay-${name}.tar.xz" "$tmp/${name}.tar.xz"
+    jarvis-verify-sha256 "$tmp/${name}.tar.xz" "$want"
+    tar -C / -Jxpf "$tmp/${name}.tar.xz"
+done
+rm -rf "$tmp"
+
+echo "$me: installed s6-overlay ${S6_OVERLAY_VERSION}"

@@ -1,0 +1,25 @@
+#!/bin/sh
+# Print distro family: debian | alpine.
+# Usage: jarvis-detect-os
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+if [ -r /etc/os-release ]; then
+    . /etc/os-release
+    case "${ID:-}" in
+        alpine) echo alpine; exit 0 ;;
+        debian | ubuntu) echo debian; exit 0 ;;
+    esac
+    case "${ID_LIKE:-}" in
+        *alpine*) echo alpine; exit 0 ;;
+        *debian*) echo debian; exit 0 ;;
+    esac
+fi
+if command -v apk >/dev/null 2>&1; then echo alpine; exit 0; fi
+if command -v apt-get >/dev/null 2>&1; then echo debian; exit 0; fi
+echo "$me: cannot detect OS" >&2
+exit 1

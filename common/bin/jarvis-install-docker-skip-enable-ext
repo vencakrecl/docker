@@ -1,0 +1,17 @@
+#!/bin/sh
+# Install PHP extension(s) via docker-php-ext-install without enabling.
+# Usage: jarvis-install-docker-skip-enable-ext <ext>...
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <ext>..."; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "usage: $me <ext>..." >&2; exit 2; }
+
+# docker-php-ext-install always enables, so the generated ini is removed after.
+docker-php-ext-install -j"$(nproc 2>/dev/null || echo 1)" "$@"
+for ext in "$@"; do
+    rm -f "${PHP_INI_DIR:-/usr/local/etc/php}/conf.d/docker-php-ext-${ext}.ini"
+done
+
+echo "$me: installed (not enabled) $*"
