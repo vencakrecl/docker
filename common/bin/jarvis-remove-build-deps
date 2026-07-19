@@ -1,0 +1,24 @@
+#!/bin/sh
+# Drop what jarvis-install-build-deps newly added.
+# Usage: jarvis-remove-build-deps
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+case "$(jarvis-detect-os)" in
+    alpine) apk del .jarvis-build-deps 2>/dev/null || true ;;
+    debian)
+        if [ -s /tmp/.jarvis-build-extras ]; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get purge -y --auto-remove $(cat /tmp/.jarvis-build-extras)
+            apt-get clean
+            rm -f /tmp/.jarvis-build-extras
+            rm -rf /var/lib/apt/lists/*
+        fi
+        ;;
+esac
+
+echo "$me: done"

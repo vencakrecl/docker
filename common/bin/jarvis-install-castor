@@ -1,0 +1,34 @@
+#!/bin/sh
+# Install Castor (task runner) static binary to /usr/local/bin/castor (sha256-verified).
+# Usage: jarvis-install-castor
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+# renovate: datasource=github-releases depName=jolicode/castor
+CASTOR_VERSION="${CASTOR_VERSION:-1.6.1}"
+CASTOR_SHA256_AMD64="${CASTOR_SHA256_AMD64:-6ba05579ca9f6546a22421e935fdab0f7d9e774cb05a25b10fe9f9528e1ab30a}"
+CASTOR_SHA256_ARM64="${CASTOR_SHA256_ARM64:-9c0aa9827e99214a8a244dc41ea94eae651b979e852167f871799c5f22f1e2b7}"
+
+# _fetch <url> <dest> - download, bootstrapping curl + CA certs first if missing.
+_fetch() {
+    command -v curl >/dev/null 2>&1 || jarvis-install-runtime-deps ca-certificates curl
+    curl -fsSL "$1" -o "$2"
+}
+
+arch="$(jarvis-detect-arch)"
+case "$arch" in
+    amd64) want="$CASTOR_SHA256_AMD64" ;;
+    arm64) want="$CASTOR_SHA256_ARM64" ;;
+esac
+tmp="$(mktemp -d)"
+_fetch "https://github.com/jolicode/castor/releases/download/v${CASTOR_VERSION}/castor.linux-${arch}" "$tmp/castor"
+jarvis-verify-sha256 "$tmp/castor" "$want"
+install -m 0755 "$tmp/castor" /usr/local/bin/castor
+rm -rf "$tmp"
+
+# report installed version (or fail loudly via set -e if it can't run)
+echo "$me: installed $(castor --version)"

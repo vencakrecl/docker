@@ -81,10 +81,10 @@ jobs:
             *) echo "unsupported arch: $arch" >&2; exit 1 ;;
           esac
           curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o "$tmp/goss"
-          sh common/helper verify-sha256 "$tmp/goss" "$goss_sha"
+          sh common/bin/jarvis-verify-sha256 "$tmp/goss" "$goss_sha"
           # dgoss: a raw script with no sidecar, so verify against the pinned DGOSS_SHA256.
           curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o "$tmp/dgoss"
-          sh common/helper verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
+          sh common/bin/jarvis-verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
           sudo install -m 0755 "$tmp/goss" /usr/local/bin/goss
           sudo install -m 0755 "$tmp/dgoss" /usr/local/bin/dgoss
       - name: Build
@@ -172,10 +172,10 @@ jobs:
             *) echo "unsupported arch: $arch" >&2; exit 1 ;;
           esac
           curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o "$tmp/goss"
-          sh common/helper verify-sha256 "$tmp/goss" "$goss_sha"
+          sh common/bin/jarvis-verify-sha256 "$tmp/goss" "$goss_sha"
           # dgoss: a raw script with no sidecar, so verify against the pinned DGOSS_SHA256.
           curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o "$tmp/dgoss"
-          sh common/helper verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
+          sh common/bin/jarvis-verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
           sudo install -m 0755 "$tmp/goss" /usr/local/bin/goss
           sudo install -m 0755 "$tmp/dgoss" /usr/local/bin/dgoss
       # ubuntu-24.04 runners set kernel.apparmor_restrict_unprivileged_userns=1,

@@ -52,32 +52,49 @@ See `docs/tags.md` for the authoritative scheme. Summary:
 - Debian vs Alpine is a build-time input, not a separate file:
   - The Makefile passes the base image as the `BASE_IMAGE` build arg (it owns the
     image/OS/version -> tag mapping).
-  - `common/helper` is the shared build toolbox, copied to `/usr/local/bin/helper`
-    and invoked as `helper <command>`. Use it in Dockerfiles instead of calling
-    apt/apk/curl directly.
+  - `common/bin/` is the shared build toolbox: one **standalone** script per task,
+    each named `jarvis-<command>`, copied onto `PATH` with a single
+    `COPY common/bin/ /usr/local/bin/` and invoked directly (e.g. `jarvis-detect-os`).
+    There is no dispatcher/wrapper. Commands **compose by calling siblings on PATH**
+    rather than sharing a library: the leaves (`jarvis-detect-os`, `jarvis-detect-arch`,
+    `jarvis-verify-sha256`, `jarvis-install-runtime-deps`) are self-contained, and the
+    rest call them (e.g. an installer does `$(jarvis-detect-os)` /
+    `jarvis-install-runtime-deps ...` / `jarvis-verify-sha256 ...` instead of copying that
+    logic; `jarvis-install-pie-ext` -> `jarvis-install-pie`; `jarvis-install-azure-cli` ->
+    `jarvis-install-build-deps`/`jarvis-remove-build-deps`). The only inlined helper is a
+    small `_fetch` (curl download + bootstrap) in the five downloaders, since it has no
+    sibling command. Each version/digest pin therefore lives in exactly one file (no
+    drift). Use these in Dockerfiles instead of calling apt/apk/curl directly.
+  - Each script follows a fixed shape (borrowed from the internal php-base `alfred-*`
+    toolbox): a description + `# Usage:` header, then a `# validate input + usage` block
+    right after `set -eu`/`me=` (`-h`/`--help` prints usage and exits 0; a bad arg count
+    prints usage to stderr and exits 2), the logic, and a trailing `echo "$me: ..."`
+    **status line** reporting the outcome. The two `detect-*` commands are the exception:
+    their stdout is the value (consumed via `$(...)`), so they carry no status line.
 - The build context is the **repo root** (`docker buildx build -f <image>/Dockerfile .`)
   so every Dockerfile can `COPY common/...`. Do not `cd` into an image dir to build.
 
-### common/helper commands
+### common/bin/jarvis-* commands
 
-- `detect-arch` -> `amd64` | `arm64` (canonical, Docker-style; from `uname -m`)
-- `detect-os` -> `debian` | `alpine`
-- `set-user-id <user> <uid> [gid]` -> rewrites the user's uid/gid in
+- `jarvis-detect-arch` -> `amd64` | `arm64` (canonical, Docker-style; from `uname -m`)
+- `jarvis-detect-os` -> `debian` | `alpine`
+- `jarvis-verify-sha256 <file> <sha256>` -> fail unless the file's sha256 matches
+- `jarvis-set-user-id <user> <uid> [gid]` -> rewrites the user's uid/gid in
   /etc/passwd + /etc/group (distro-agnostic; Alpine has no usermod). Run it
   *before* the image's `chown -R <user>` so the chown uses the new id.
-- `install-runtime-deps <pkgs...>` -> apt-get or apk, with cache cleanup
-- `install-build-deps <pkgs...>` / `remove-build-deps` -> install the given packages as
+- `jarvis-install-runtime-deps <pkgs...>` -> apt-get or apk, with cache cleanup
+- `jarvis-install-build-deps <pkgs...>` / `jarvis-remove-build-deps` -> install the given packages as
   a removable group, then drop what was added. The caller (the Dockerfile) passes the
   packages - the toolchain (`$PHPIZE_DEPS`, an image ENV), `unzip`, and any headers.
   Alpine: an `apk --virtual` group, dropped whole. Debian: only the packages it *newly*
   installed are recorded and `apt-get purge --auto-remove`d, so already-present ones
   (base `$PHPIZE_DEPS`, a runtime pkg) survive. Either way the transient build packages
   leave no trace (Debian keeps its base toolchain, which it owns).
-- `install-s6-overlay` -> s6-overlay init/supervisor (noarch + per-arch tarballs)
-- `install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
-- `install-pie` -> PIE phar to `/usr/local/bin/pie` (needs PHP at runtime)
-- `install-castor` -> Castor static binary to `/usr/local/bin/castor`
-- `install-aws-cli` / `install-gcloud` / `install-azure-cli` -> cloud CLIs for the
+- `jarvis-install-s6-overlay` -> s6-overlay init/supervisor (noarch + per-arch tarballs)
+- `jarvis-install-composer` -> Composer to `/usr/local/bin/composer` (sha256-verified)
+- `jarvis-install-pie` -> PIE phar to `/usr/local/bin/pie` (needs PHP at runtime)
+- `jarvis-install-castor` -> Castor static binary to `/usr/local/bin/castor`
+- `jarvis-install-aws-cli` / `jarvis-install-gcloud` / `jarvis-install-azure-cli` -> cloud CLIs for the
   `dind` variants (Alpine only, since the dind base is Alpine): aws via apk community;
   gcloud from the versioned tarball with system musl python3 (bundled glibc python
   dropped) + bash/libc6-compat; azure via pip into a `/opt/azure-cli` venv (`az` on
@@ -86,9 +103,11 @@ See `docs/tags.md` for the authoritative scheme. Summary:
 Each installs + enables the extension(s); every arg is an extension name (multiple
 allowed):
 
-- `install-pie-ext` -> `pie install` (composer-style `vendor/ext` names)
-- `install-pecl-ext` -> `pecl install` (then `docker-php-ext-enable`)
-- `install-docker-ext` -> `docker-php-ext-install`
+- `jarvis-install-pie-ext` -> `pie install` (composer-style `vendor/ext` names)
+- `jarvis-install-pecl-ext` -> `pecl install` (then `docker-php-ext-enable`)
+- `jarvis-install-docker-ext` -> `docker-php-ext-install`
+
+(each also has a `*-skip-enable-ext` variant that installs without enabling.)
 
 Build/runtime deps ($PHPIZE_DEPS, `-dev` libs) are the caller's responsibility, as in
 the official php image docs.
@@ -99,45 +118,49 @@ Pinning an extension version (the token is passed straight through):
 - docker: not possible - `docker-php-ext-install` builds extensions bundled in
   the PHP source, so their version tracks the base image; pin `PHP_VERSION` instead.
 
-Tool versions are pinned at the top of `common/helper` (`S6_OVERLAY_VERSION`,
-`COMPOSER_VERSION`, `PIE_VERSION`, `CASTOR_VERSION`, `GCLOUD_VERSION`,
-`AZURE_CLI_VERSION`; AWS CLI is unpinned - it tracks the Alpine repo) and overridable via env.
-Keep them pinned - do not switch to "latest" URLs (reproducibility).
+Tool versions are pinned at the top of the installer that owns them: `S6_OVERLAY_VERSION`
+in `jarvis-install-s6-overlay`, `COMPOSER_VERSION` in `jarvis-install-composer`,
+`PIE_VERSION` in `jarvis-install-pie`, `CASTOR_VERSION` in `jarvis-install-castor`,
+`GCLOUD_VERSION` in `jarvis-install-gcloud` (AWS CLI is unpinned - it tracks the Alpine
+repo; azure-cli's version lives in `dind/azure-cli-requirements.txt`). All are overridable
+via env. Keep them pinned - do not switch to "latest" URLs (reproducibility).
 
-Downloaded artifacts are **sha256-verified** before use (via the `_verify_sha256` helper),
-against digests **pinned in `common/helper`** - never a checksum fetched from the same origin
-as the artifact (a compromised/MITM'd origin could serve a matching malicious artifact+sidecar
-pair; trust-on-first-use). s6-overlay (`S6_OVERLAY_SHA256_{NOARCH,AMD64,ARM64}`), composer
+Downloaded artifacts are **sha256-verified** before use (via each script's inlined
+`_verify_sha256`), against digests **pinned in the same `jarvis-install-*` file as the
+version** - never a checksum fetched from the same origin as the artifact (a
+compromised/MITM'd origin could serve a matching malicious artifact+sidecar pair;
+trust-on-first-use). s6-overlay (`S6_OVERLAY_SHA256_{NOARCH,AMD64,ARM64}`), composer
 (`COMPOSER_SHA256`), pie (`PIE_SHA256`), castor (`CASTOR_SHA256_<ARCH>`) and gcloud
 (`GCLOUD_SHA256_<ARCH>`) all pin their digest next to the version.
-Like the `*_VERSION` pins these are helper env vars, not wired as Dockerfile `ARG`s, so a plain
-`docker build` uses the defaults; if you do override a version (set the env when invoking helper,
-or add an `ARG`), set the matching `*_SHA256` too or verification fails - bump both together. Azure CLI installs via pip
+Like the `*_VERSION` pins these are env vars, not wired as Dockerfile `ARG`s, so a plain
+`docker build` uses the defaults; if you do override a version (set the env when invoking
+the command, or add an `ARG`), set the matching `*_SHA256` too or verification fails - bump
+both together. Azure CLI installs via pip
 under `--require-hashes` from `dind/azure-cli-requirements.txt`, a lockfile pinning its whole
 transitive tree to exact versions + PyPI sha256; regenerate it with `dind/gen-azure-hashes.sh`
 after bumping `AZURE_CLI_VERSION` (the version lives in the lockfile). AWS CLI is an apk package (verified by apk). The verifier is
-exposed as `helper verify-sha256 <file> <sha256>`; CI reuses it to check its goss binary (against
+exposed as `jarvis-verify-sha256 <file> <sha256>`; CI reuses it to check its goss binary (against
 the pinned per-arch `GOSS_SHA256_{AMD64,ARM64}`) and the `dgoss` script (pinned via `DGOSS_SHA256`).
 
 **Dependency automation.** These hand-pinned versions are kept fresh by three cooperating
-pieces (Dependabot only covers github-actions - `FROM ${BASE_IMAGE}` and the helper pins
+pieces (Dependabot only covers github-actions - `FROM ${BASE_IMAGE}` and the jarvis-* pins
 aren't tracked ecosystems):
 - **Renovate** (`.github/renovate.json`) opens version-bump PRs for s6-overlay/composer/pie/castor
-  (annotated with `# renovate:` comments in `common/helper`) and goss (in `ci.yml`), via a
+  (annotated with `# renovate:` comments in the `common/bin/jarvis-install-*` commands) and goss (in `ci.yml`), via a
   custom regex manager keyed off those comments. It cannot recompute artifact digests, so a
   bump PR carries a note to run `make bump-digests` (CI fails closed on the stale digest otherwise).
 - **`common/deps.sh`** (`make check-deps` / `make bump-digests`): `check` reports pinned-vs-latest
   for every tool incl. gcloud + azure-cli (which have no standard Renovate datasource);
   `refresh-digests [tool...]` re-fetches each artifact at its currently-pinned version and rewrites
-  the matching `*_SHA256` in `common/helper` / `ci.yml` (uses `cat >` not `mv` so `helper`'s 0755
-  mode survives). "Verify digests" = `refresh-digests` + `git diff --exit-code`.
+  the matching `*_SHA256` in the owning `jarvis-install-*` command / `ci.yml` (uses `cat >` not `mv`
+  so the script's 0755 mode survives). "Verify digests" = `refresh-digests` + `git diff --exit-code`.
 - **`.github/workflows/deps-check.yml`** runs `common/deps.sh check` weekly (Mon 06:00 UTC) and opens/updates
   a single `Outdated pinned dependencies` issue via `gh` when anything is behind (`exit 3`).
 - Base-image tags (`PHP_VERSION`/`DOCKER_VERSION`) are intentionally not automated: they're policy
   floors, and OS security patches arrive on every rebuild since the `FROM` tags aren't digest-pinned.
 - Where the distro layout genuinely diverges (e.g. the Apache config tree, or
-  per-distro packages/headers), the Dockerfile branches at build time on `helper
-  detect-os` (`debian`|`alpine`) rather than templating - e.g. fpm-apache's `case`
+  per-distro packages/headers), the Dockerfile branches at build time on
+  `jarvis-detect-os` (`debian`|`alpine`) rather than templating - e.g. fpm-apache's `case`
   picking the Debian `a2enmod` path vs the Alpine `httpd.conf` sed, and the web images'
   `PHP EXTENSIONS` blocks selecting per-distro `build_deps`.
 
@@ -400,8 +423,8 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
 ## Per-image notes
 
 - `fpm-nginx`, `fpm-apache`: `php:*-fpm[-alpine]` base + web server installed via
-  the helper. PID 1 is s6-overlay (`ENTRYPOINT ["/init"]`, installed by
-  `helper install-s6-overlay`). The whole s6 config tree lives under `<image>/etc/`
+  the jarvis-* commands. PID 1 is s6-overlay (`ENTRYPOINT ["/init"]`, installed by
+  `jarvis-install-s6-overlay`). The whole s6 config tree lives under `<image>/etc/`
   mirroring the container (`etc/s6-overlay/{s6-rc.d,user-bundles.d}`) and is installed
   with a single `COPY <image>/etc /etc`. Services are s6-rc.d longruns under
   `etc/s6-overlay/s6-rc.d/` (php-fpm + the web server) and are registered into the
@@ -437,7 +460,7 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
   '{{.Config.StopSignal}}'` and the `.s6-svscan/` handlers if the base image changes.)
 - **Non-root (secure by default):** the web images run unprivileged as `www-data`
   on port **8080** (`USER ${SERVER_USER}`, `EXPOSE 8080`). `SERVER_USER` is a build
-  ARG (default `www-data`, persisted as ENV) used for the `chown`, `set-user-id`, and
+  ARG (default `www-data`, persisted as ENV) used for the `chown`, `jarvis-set-user-id`, and
   `USER` - unlike `SERVER_ROOT` it is *build-time only* (the `USER`/`chown` are baked
   and the container is non-root, so it cannot switch users at runtime; override with
   `--build-arg SERVER_USER=...` to rebuild, or `docker run --user` at runtime). s6-overlay has "limited"
@@ -459,51 +482,51 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
   `ENV SERVER_NAME=:8080` (plain HTTP, no
   443/auto-TLS) and chowns `/app /config /data`.
 - **Host-user matching (local dev):** the web images take `USER_ID`/`GROUP_ID`
-  build args; when set they `helper set-user-id www-data ...` *before* the chown,
+  build args; when set they `jarvis-set-user-id www-data ...` *before* the chown,
   so www-data gets the host uid and bind-mounted files are owned correctly (matters
   on Linux; Docker Desktop auto-maps). Makefile passes them only when set (so no
   build warning on dind). Default unset = hardened uid 82/33. Runtime alternative:
   `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
 - **PHP extensions - a default set, extended by deriving:** all three web images install
-  the **same default extension set** with **explicit `helper` calls** in their Dockerfiles
+  the **same default extension set** with **explicit `jarvis-*` calls** in their Dockerfiles
   (no build-args, readable) - two per install manager, all needing no extra system libs:
-  `install-docker-ext mysqli bcmath`, `install-pecl-ext redis-6.3.0 apcu-5.1.28`,
-  `install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1`
-  (`install-pie-ext` installs the PIE binary itself if needed), bracketed by
-  `install-build-deps $PHPIZE_DEPS unzip` / `remove-build-deps`. A `default-extensions`
+  `jarvis-install-docker-ext mysqli bcmath`, `jarvis-install-pecl-ext redis-6.3.0 apcu-5.1.28`,
+  `jarvis-install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1`
+  (`jarvis-install-pie-ext` installs the PIE binary itself if needed), bracketed by
+  `jarvis-install-build-deps $PHPIZE_DEPS unzip` / `jarvis-remove-build-deps`. A `default-extensions`
   goss test asserts they load. Each image's `dev` stage does the same for xdebug/pcov/spx,
-  with a `detect-os` `case` selecting per-distro `build_deps`/`runtime_deps` (Alpine
+  with a `jarvis-detect-os` `case` selecting per-distro `build_deps`/`runtime_deps` (Alpine
   `linux-headers zlib-dev`, Debian `zlib1g-dev`; plus a kept `unzip` for composer). The
   three base/dev blocks are identical across the images (the explicit style trades DRY for
   readability).
   - **To *extend* the defaults, derive - don't rebuild from the repo.** Dockerfile edits
     only apply when building the image from this repo; a downstream `FROM <image>:<tag>` user
-    adds extensions with the baked-in `helper` (`USER root; helper install-runtime-deps
-    <libs>; helper install-docker-ext/-pecl-ext/-pie-ext <ext>; USER www-data`).
+    adds extensions with the baked-in `jarvis-*` commands (`USER root; jarvis-install-runtime-deps
+    <libs>; jarvis-install-docker-ext/-pecl-ext/-pie-ext <ext>; USER www-data`).
     `examples/wordpress/Dockerfile` extends the defaults with one more, `gd` (+`libpng-dev`).
     PIE's ecosystem is thin - most `pecl/<name>` bridges 404 on Packagist; only a few
     (`pecl/pcov`, `pecl/zip`) and native `vendor/ext-*` install.
-  - Bundled extensions (`docker-php-ext-install` / `helper install-docker-ext`) need no
+  - Bundled extensions (`docker-php-ext-install` / `jarvis-install-docker-ext`) need no
     caller-provided toolchain: `docker-php-ext-install` installs its build deps transiently
     and purges them itself (verified - the Alpine build log ends with `Purging musl-dev /
-    libgcc`; `gcc` is absent before and after). So `install-docker-ext` needs no
-    `install-build-deps` bracket.
+    libgcc`; `gcc` is absent before and after). So `jarvis-install-docker-ext` needs no
+    `jarvis-install-build-deps` bracket.
   - PECL/PIE compile external sources and need `$PHPIZE_DEPS` - present on Debian, absent
-    on Alpine. Each web Dockerfile's `RUN` runs `helper install-build-deps $PHPIZE_DEPS unzip`
+    on Alpine. Each web Dockerfile's `RUN` runs `jarvis-install-build-deps $PHPIZE_DEPS unzip`
     (unzip is what PIE uses to fetch packages) around the pecl/pie installs, then
-    `helper remove-build-deps` drops what was added: Alpine deletes the `apk --virtual`
+    `jarvis-remove-build-deps` drops what was added: Alpine deletes the `apk --virtual`
     group; Debian purges only the packages it
     newly installed (base `$PHPIZE_DEPS` and runtime libs survive). So the transient build
     packages leave no trace (Debian keeps its base toolchain). Verified: pecl `redis` on
     Alpine loads and autoconf is gone afterward; pie `xdebug/xdebug` on Debian loads.
-  - Extensions needing extra *system* packages get explicit `helper` calls in the
-    Dockerfile (there are **no** `PHP_*_PACKAGES` build args): `install-runtime-deps`
+  - Extensions needing extra *system* packages get explicit `jarvis-*` calls in the
+    Dockerfile (there are **no** `PHP_*_PACKAGES` build args): `jarvis-install-runtime-deps`
     for libs that must stay (e.g. `gd`->`libpng-dev`, as in `examples/wordpress`), and
-    the removable `install-build-deps` group for build-only headers. The `dev` stage
-    does exactly this via its per-distro `detect-os` `case` (Alpine `linux-headers
+    the removable `jarvis-install-build-deps` group for build-only headers. The `dev` stage
+    does exactly this via its per-distro `jarvis-detect-os` `case` (Alpine `linux-headers
     zlib-dev`, Debian `zlib1g-dev`), splitting `build_deps` (removed) from `runtime_deps`
     (kept).
-  - Not expressible through the args (use the helper / a derived Dockerfile):
+  - Not expressible through the args (use a jarvis-* command / a derived Dockerfile):
     `docker-php-ext-configure` flags (e.g. gd with jpeg/freetype) and per-extension PIE
     config flags (e.g. `asgrim/example-pie-extension` needs `--enable-...`).
 - **Document root (`SERVER_ROOT`, runtime-overridable):** all three web images
@@ -536,8 +559,8 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
   `/run/user/1000/docker.sock`, so a CLI needs `DOCKER_HOST` pointed there.
   - **Cloud CLI variants (`CLOUD` build arg):** `dind/Dockerfile` takes an optional
     `ARG CLOUD` (empty = plain dind; `aws` | `gcloud` | `azure`), branching in one
-    `RUN` (as `root`, then back to `USER rootless`) to `helper install-aws-cli` /
-    `install-gcloud` / `install-azure-cli`. Unknown values fail the build. Makefile
+    `RUN` (as `root`, then back to `USER rootless`) to `jarvis-install-aws-cli` /
+    `jarvis-install-gcloud` / `jarvis-install-azure-cli`. Unknown values fail the build. Makefile
     targets `dind-aws` / `dind-gcloud` / `dind-azure` set `CLOUD` and tag
     `<docker>-rootless-<cloud>`; the base `build` macro passes `--build-arg CLOUD` when
     set (so plain `make dind` is unaffected). Tests: `make test-dind-<cloud>` runs the
@@ -558,19 +581,19 @@ and **spx** extensions. Not applied to `dind` (not a PHP image).
   to install, then resets `USER ${SERVER_USER}`; it inherits the prod ENTRYPOINT/
   HEALTHCHECK/etc. Building without `--target` still gives the lean image (the empty
   `prod` stage is last).
-- **Extensions installed explicitly.** The `dev` stage runs `helper install-composer`,
-  `install-castor`, then `install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12
-  noisebynorthwest/php-spx:0.4.22` (pinned inline, no ARGs; `install-pie-ext` installs the
+- **Extensions installed explicitly.** The `dev` stage runs `jarvis-install-composer`,
+  `jarvis-install-castor`, then `jarvis-install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12
+  noisebynorthwest/php-spx:0.4.22` (pinned inline, no ARGs; `jarvis-install-pie-ext` installs the
   PIE binary itself if absent). pcov has no native PIE package, so it uses PIE's `pecl/`
   bridge (`pecl/pcov`); xdebug and spx have native PIE packages.
-- **Per-distro packages via a `detect-os` case.** The `RUN` sets two shell vars:
+- **Per-distro packages via a `jarvis-detect-os` case.** The `RUN` sets two shell vars:
   `build_deps` (removable) - `$PHPIZE_DEPS unzip` (the pecl/pie toolchain) plus the headers
   xdebug/spx compile against (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`) - and
   `runtime_deps` (kept) - `unzip`, so runtime `composer install` can extract packages
   (Debian's base ships none; Alpine's busybox `unzip` is limited). It then calls
-  `install-runtime-deps $runtime_deps`, `install-build-deps $build_deps`, the extension
-  installs, and `remove-build-deps`. So the build packages leave no trace (~7 MB of headers
-  saved on Alpine, plus the toolchain there); `unzip` survives because `install_build_deps`
+  `jarvis-install-runtime-deps $runtime_deps`, `jarvis-install-build-deps $build_deps`, the extension
+  installs, and `jarvis-remove-build-deps`. So the build packages leave no trace (~7 MB of headers
+  saved on Alpine, plus the toolchain there); `unzip` survives because `jarvis-install-build-deps`
   records for removal only what it *newly* installed (unzip was already installed as a
   runtime pkg), and on Debian the base `$PHPIZE_DEPS` stays (its own). Each `dev` stage is
   self-contained - `docker build --target dev` works without the Makefile. Verified on both

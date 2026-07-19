@@ -1,11 +1,11 @@
 # Local Docker image builds.
 #
 # Each image has a single Dockerfile that receives its base image via the
-# BASE_IMAGE build arg; common/helper abstracts apt vs apk (and more) so the
-# same Dockerfile works for Debian and Alpine bases.
+# BASE_IMAGE build arg; the common/bin/jarvis-* commands abstract apt vs apk (and
+# more) so the same Dockerfile works for Debian and Alpine bases.
 #
 # The build context is the repo root (note the trailing `.` and `-f <image>/Dockerfile`)
-# so every Dockerfile can COPY the shared common/helper.
+# so every Dockerfile can COPY the shared common/bin/ toolbox.
 #
 # Local builds target the host platform only: `docker buildx build --load` cannot
 # load a multi-platform manifest into the engine. Multi-arch (amd64+arm64) images
@@ -75,7 +75,7 @@ frankenphp-alpine:
 # Each web image's Dockerfile has a `dev` stage (--target dev) that layers the dev
 # toolbox onto the lean image: composer, castor, and the xdebug/pcov/spx extensions.
 # The extension list + its distro-specific build headers are defined in the Dockerfile's
-# `dev` stage (explicit `helper install-*-ext` calls; xdebug off by default, see
+# `dev` stage (explicit `jarvis-install-*-ext` calls; xdebug off by default, see
 # common/dev.ini), so these targets just select the stage. Tag: <php>-<os>-dev.
 .PHONY: dev
 dev: fpm-nginx-dev fpm-apache-dev frankenphp-dev ## Build the dev variants of the web images (both OS)

@@ -1,0 +1,27 @@
+#!/bin/sh
+# Install OS packages that stay (apt-get or apk), with cache cleanup.
+# Usage: jarvis-install-runtime-deps <pkg>...
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <pkg>..."; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "usage: $me <pkg>..." >&2; exit 2; }
+
+case "$(jarvis-detect-os)" in
+    alpine)
+        apk add --no-cache "$@"
+        ;;
+    debian)
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y --no-install-recommends "$@"
+        apt-get clean
+        rm -rf /var/lib/apt/lists/*
+        ;;
+    *)
+        echo "$me: unsupported OS" >&2; exit 1
+        ;;
+esac
+
+echo "$me: installed $*"

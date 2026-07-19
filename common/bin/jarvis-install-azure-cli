@@ -1,0 +1,23 @@
+#!/bin/sh
+# Install Azure CLI to /opt/azure-cli venv, az on PATH (Alpine only, hash-verified lockfile).
+# Usage: jarvis-install-azure-cli
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+# Install from a pinned, hash-verified lockfile (pip --require-hashes). The whole
+# transitive tree is pinned with sha256; regenerate via dind/gen-azure-hashes.sh.
+# Toolchain goes in a removable group (via the sibling build-deps commands).
+reqs="${AZURE_CLI_REQUIREMENTS:-/usr/local/etc/azure-cli-requirements.txt}"
+[ -f "$reqs" ] || { echo "$me: hashed requirements not found: $reqs" >&2; exit 1; }
+jarvis-install-runtime-deps python3
+jarvis-install-build-deps gcc musl-dev python3-dev libffi-dev openssl-dev linux-headers make cargo
+python3 -m venv /opt/azure-cli
+/opt/azure-cli/bin/pip install --no-cache-dir --require-hashes -r "$reqs"
+ln -s /opt/azure-cli/bin/az /usr/local/bin/az
+jarvis-remove-build-deps
+
+echo "$me: installed azure-cli into /opt/azure-cli"

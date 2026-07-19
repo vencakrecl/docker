@@ -1,0 +1,37 @@
+#!/bin/sh
+# Install Google Cloud CLI to /usr/local/google-cloud-sdk (Alpine only, sha256-verified).
+# Usage: jarvis-install-gcloud
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
+[ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
+
+GCLOUD_VERSION="${GCLOUD_VERSION:-576.0.0}"
+GCLOUD_SHA256_AMD64="${GCLOUD_SHA256_AMD64:-7094a08e8fc3772cdbfb1a8a1920300f52fec5e370c9f9c803c2a3c8824a32c2}"
+GCLOUD_SHA256_ARM64="${GCLOUD_SHA256_ARM64:-be6077ade7b08312a250b49b5838473253c52e25358c63cfb2cfb4095503b5f2}"
+
+# _fetch <url> <dest> - download, bootstrapping curl + CA certs first if missing.
+_fetch() {
+    command -v curl >/dev/null 2>&1 || jarvis-install-runtime-deps ca-certificates curl
+    curl -fsSL "$1" -o "$2"
+}
+
+# gcloud bundles a glibc python that can't run on musl, so use system python3
+# (+bash, libc6-compat) and drop the bundled interpreter (google/cloud-sdk's approach).
+case "$(jarvis-detect-arch)" in
+    amd64) gcarch=x86_64; want="$GCLOUD_SHA256_AMD64" ;;
+    arm64) gcarch=arm;    want="$GCLOUD_SHA256_ARM64" ;;
+esac
+jarvis-install-runtime-deps python3 bash libc6-compat
+tmp="$(mktemp -d)"
+_fetch "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-${GCLOUD_VERSION}-linux-${gcarch}.tar.gz" "$tmp/gcloud.tar.gz"
+jarvis-verify-sha256 "$tmp/gcloud.tar.gz" "$want"
+tar -C /usr/local -xzf "$tmp/gcloud.tar.gz"
+rm -rf "$tmp" /usr/local/google-cloud-sdk/platform/bundledpythonunix
+for b in gcloud gsutil bq; do
+    ln -s /usr/local/google-cloud-sdk/bin/"$b" /usr/local/bin/"$b"
+done
+
+echo "$me: installed google-cloud-cli ${GCLOUD_VERSION}"

@@ -1,0 +1,16 @@
+#!/bin/sh
+# Install PHP extension(s) via PIE without enabling.
+# Usage: jarvis-install-pie-skip-enable-ext <ext>...
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <ext>..."; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "usage: $me <ext>..." >&2; exit 2; }
+
+command -v pie >/dev/null 2>&1 || jarvis-install-pie
+for ext in "$@"; do
+    pie install --skip-enable-extension "$ext"
+done
+
+echo "$me: installed (not enabled) $*"

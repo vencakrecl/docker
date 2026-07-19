@@ -1,0 +1,26 @@
+#!/bin/sh
+# Install packages as a removable group (caller passes $PHPIZE_DEPS, unzip, headers).
+# Usage: jarvis-install-build-deps <pkg>...
+set -eu
+me="${0##*/}"
+
+# validate input + usage
+case "${1:-}" in -h|--help) echo "usage: $me <pkg>..."; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "usage: $me <pkg>..." >&2; exit 2; }
+
+# Alpine: an apk --virtual group dropped whole by jarvis-remove-build-deps.
+# Debian: record only newly-added pkgs (skip already-present base/runtime ones)
+# so remove purges just the transient ones; the base $PHPIZE_DEPS survives.
+case "$(jarvis-detect-os)" in
+    alpine) apk add --no-cache --virtual .jarvis-build-deps "$@" ;;
+    debian)
+        : > /tmp/.jarvis-build-extras
+        for pkg in "$@"; do
+            dpkg -s "$pkg" >/dev/null 2>&1 || echo "$pkg" >> /tmp/.jarvis-build-extras
+        done
+        jarvis-install-runtime-deps "$@"
+        ;;
+    *) echo "$me: unsupported OS" >&2; exit 1 ;;
+esac
+
+echo "$me: installed (removable) $*"

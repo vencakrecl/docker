@@ -35,7 +35,7 @@ make fpm-nginx-alpine
 
 - [Naming & tags](docs/tags.md) - GHCR registry, tag format, multi-arch manifests
 - [Configuration](docs/configuration.md) - PHP (`php.ini` / php-fpm) and logging env knobs
-- [Building & local development](docs/building.md) - Makefile, the `helper` toolbox, host-user matching, Docker Compose
+- [Building & local development](docs/building.md) - Makefile, the `jarvis-*` toolbox, host-user matching, Docker Compose
 - [Testing & CI](docs/testing.md) - dgoss, the GitHub Actions matrix, status
 
 ## License

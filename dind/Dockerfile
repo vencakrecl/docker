@@ -4,23 +4,23 @@ ARG BASE_IMAGE=docker:29-dind-rootless
 ###> BASE IMAGE & TOOLBOX
 FROM ${BASE_IMAGE}
 
-COPY common/helper /usr/local/bin/helper
+COPY common/bin/ /usr/local/bin/
 # Hash-verified pip lockfile for the CLOUD=azure variant (unused by other variants).
 COPY dind/azure-cli-requirements.txt /usr/local/etc/azure-cli-requirements.txt
 ###< BASE IMAGE & TOOLBOX
 
 ###> CLOUD CLI
 # Optional cloud CLI, selected at build time: CLOUD=aws|gcloud|azure (empty = plain
-# dind). Each is installed via the shared helper (Alpine only, matching the dind base);
+# dind). Each is installed via the shared jarvis-* commands (Alpine only, matching the dind base);
 # the daemon still runs rootless, so switch to root just for the install. gcloud uses
 # the system musl python3, hence CLOUDSDK_PYTHON. Tag suffix: -aws / -gcloud / -azure.
 ARG CLOUD=
 ENV CLOUDSDK_PYTHON=/usr/bin/python3
 USER root
 RUN case "${CLOUD}" in \
-        aws)    helper install-aws-cli ;; \
-        gcloud) helper install-gcloud ;; \
-        azure)  helper install-azure-cli ;; \
+        aws)    jarvis-install-aws-cli ;; \
+        gcloud) jarvis-install-gcloud ;; \
+        azure)  jarvis-install-azure-cli ;; \
         "")     : ;; \
         *)      echo "dind: unknown CLOUD='${CLOUD}' (want aws|gcloud|azure)" >&2; exit 1 ;; \
     esac
