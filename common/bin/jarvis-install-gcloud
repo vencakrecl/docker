@@ -8,9 +8,9 @@ me="${0##*/}"
 case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
 [ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
 
-GCLOUD_VERSION="${GCLOUD_VERSION:-576.0.0}"
-GCLOUD_SHA256_AMD64="${GCLOUD_SHA256_AMD64:-7094a08e8fc3772cdbfb1a8a1920300f52fec5e370c9f9c803c2a3c8824a32c2}"
-GCLOUD_SHA256_ARM64="${GCLOUD_SHA256_ARM64:-be6077ade7b08312a250b49b5838473253c52e25358c63cfb2cfb4095503b5f2}"
+GCLOUD_VERSION="${GCLOUD_VERSION:-581.0.0}"
+GCLOUD_SHA256_AMD64="${GCLOUD_SHA256_AMD64:-deffdbe82ca6e3d19ffb291d063a651488e04e1b33799b5a238e4b5c6784e3c6}"
+GCLOUD_SHA256_ARM64="${GCLOUD_SHA256_ARM64:-22cfc09888525c6daadb8764388ce14e6c26baf80ab07938eacb08c2b4ae64c9}"
 
 # _fetch <url> <dest> - download, bootstrapping curl + CA certs first if missing.
 _fetch() {

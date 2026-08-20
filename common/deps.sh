@@ -57,8 +57,14 @@ composer_latest() { curl -fsSL "https://getcomposer.org/versions" | sed -n 's/.*
 gcloud_latest()   { curl -fsSL "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json" | sed -n 's/.*"version": *"\([0-9.]*\)".*/\1/p' | head -1; }
 azure_latest()    { curl -fsSL "https://pypi.org/pypi/azure-cli/json" | sed -n 's/.*"version":"\([0-9][^"]*\)".*/\1/p' | head -1; }
 
-# download <url> -> temp file path (echoed)
-fetch() { local d; d=$(mktemp); curl -fsSL "$1" -o "$d"; echo "$d"; }
+# download <url> -> temp file path (echoed). Fails hard: without the explicit `return`,
+# curl's error would be masked by the trailing `echo` and the sha256 of an empty file
+# (e3b0c442...) would be pinned silently - which is what a renamed upstream asset looks like.
+fetch() {
+    local d; d=$(mktemp)
+    curl -fsSL "$1" -o "$d" || { rm -f "$d"; echo "$0: download failed: $1" >&2; return 1; }
+    echo "$d"
+}
 
 # --- check mode --------------------------------------------------------------
 row() { printf '%-12s %-14s %-14s %s\n' "$1" "$2" "$3" "$4"; }
@@ -117,9 +123,12 @@ refresh_castor() {
     echo "  castor $v: refreshed"
 }
 refresh_goss() {
-    local v d; v=$(ci_pin GOSS_VERSION)
-    d=$(fetch "https://github.com/goss-org/goss/releases/download/${v}/goss-linux-amd64"); set_ci GOSS_SHA256_AMD64 "$(sha256 "$d")"; rm -f "$d"
-    d=$(fetch "https://github.com/goss-org/goss/releases/download/${v}/goss-linux-arm64"); set_ci GOSS_SHA256_ARM64 "$(sha256 "$d")"; rm -f "$d"
+    # since v0.4.10 goss ships per-arch *tarballs* (`goss_<ver>_linux_<arch>.tar.gz`), not
+    # raw binaries - so the pinned digest is the tarball's and CI extracts the binary.
+    local v d base; v=$(ci_pin GOSS_VERSION)
+    base="https://github.com/goss-org/goss/releases/download/${v}/goss_$(strip_v "$v")_linux"
+    d=$(fetch "${base}_x86_64.tar.gz"); set_ci GOSS_SHA256_AMD64 "$(sha256 "$d")"; rm -f "$d"
+    d=$(fetch "${base}_arm64.tar.gz");  set_ci GOSS_SHA256_ARM64 "$(sha256 "$d")"; rm -f "$d"
     d=$(fetch "https://raw.githubusercontent.com/goss-org/goss/${v}/extras/dgoss/dgoss");  set_ci DGOSS_SHA256      "$(sha256 "$d")"; rm -f "$d"
     echo "  goss/dgoss $v: refreshed"
 }

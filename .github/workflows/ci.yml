@@ -15,12 +15,12 @@ permissions:
 
 env:
   # renovate: datasource=github-releases depName=goss-org/goss
-  GOSS_VERSION: v0.4.9
+  GOSS_VERSION: v0.4.10
   # goss + dgoss are verified against digests pinned here (never a checksum fetched from the
   # same origin as the artifact - trust-on-first-use). Bump all three alongside GOSS_VERSION.
-  GOSS_SHA256_AMD64: 87dd36cfa1b8b50554e6e2ca29168272e26755b19ba5438341f7c66b36decc19
-  GOSS_SHA256_ARM64: 14fd24ac08236559f4809e6a627792d1b947ed98654bba1662ef1d6122d77e18
-  DGOSS_SHA256: 7ee35d6ccbe1440eb2a08984a43e8b3742f2e849abdc0d7384ac08de55682d7c
+  GOSS_SHA256_AMD64: 26e365428946294bcec0c61d867bb3c8349f39feb3d0e6f59084e98632785cc7
+  GOSS_SHA256_ARM64: 90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6
+  DGOSS_SHA256: 3bb3ac9df33eeab8ce71a35763f4a69582eceb7db7bf02b4d0a551e72c7a888d
   DOCKER_VERSION: "29" # dind tag (matches the Makefile default)
 
 jobs:
@@ -75,13 +75,16 @@ jobs:
           arch=$(dpkg --print-architecture)
           tmp=$(mktemp -d)
           # goss: verify against the pinned per-arch digest (not a same-origin sidecar).
+          # Since v0.4.10 goss ships per-arch tarballs, not raw binaries, so the digest is
+          # the tarball's and the binary is extracted from it.
           case "$arch" in
-            amd64) goss_sha="$GOSS_SHA256_AMD64" ;;
-            arm64) goss_sha="$GOSS_SHA256_ARM64" ;;
+            amd64) goss_arch=x86_64; goss_sha="$GOSS_SHA256_AMD64" ;;
+            arm64) goss_arch=arm64;  goss_sha="$GOSS_SHA256_ARM64" ;;
             *) echo "unsupported arch: $arch" >&2; exit 1 ;;
           esac
-          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o "$tmp/goss"
-          sh common/bin/jarvis-verify-sha256 "$tmp/goss" "$goss_sha"
+          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss_${GOSS_VERSION#v}_linux_${goss_arch}.tar.gz" -o "$tmp/goss.tar.gz"
+          sh common/bin/jarvis-verify-sha256 "$tmp/goss.tar.gz" "$goss_sha"
+          tar -xzf "$tmp/goss.tar.gz" -C "$tmp" goss
           # dgoss: a raw script with no sidecar, so verify against the pinned DGOSS_SHA256.
           curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o "$tmp/dgoss"
           sh common/bin/jarvis-verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
@@ -166,13 +169,16 @@ jobs:
           arch=$(dpkg --print-architecture)
           tmp=$(mktemp -d)
           # goss: verify against the pinned per-arch digest (not a same-origin sidecar).
+          # Since v0.4.10 goss ships per-arch tarballs, not raw binaries, so the digest is
+          # the tarball's and the binary is extracted from it.
           case "$arch" in
-            amd64) goss_sha="$GOSS_SHA256_AMD64" ;;
-            arm64) goss_sha="$GOSS_SHA256_ARM64" ;;
+            amd64) goss_arch=x86_64; goss_sha="$GOSS_SHA256_AMD64" ;;
+            arm64) goss_arch=arm64;  goss_sha="$GOSS_SHA256_ARM64" ;;
             *) echo "unsupported arch: $arch" >&2; exit 1 ;;
           esac
-          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${arch}" -o "$tmp/goss"
-          sh common/bin/jarvis-verify-sha256 "$tmp/goss" "$goss_sha"
+          curl -fsSL "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss_${GOSS_VERSION#v}_linux_${goss_arch}.tar.gz" -o "$tmp/goss.tar.gz"
+          sh common/bin/jarvis-verify-sha256 "$tmp/goss.tar.gz" "$goss_sha"
+          tar -xzf "$tmp/goss.tar.gz" -C "$tmp" goss
           # dgoss: a raw script with no sidecar, so verify against the pinned DGOSS_SHA256.
           curl -fsSL "https://raw.githubusercontent.com/goss-org/goss/${GOSS_VERSION}/extras/dgoss/dgoss" -o "$tmp/dgoss"
           sh common/bin/jarvis-verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
