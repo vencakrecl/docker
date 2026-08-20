@@ -139,8 +139,11 @@ both together. Azure CLI installs via pip
 under `--require-hashes` from `dind/azure-cli-requirements.txt`, a lockfile pinning its whole
 transitive tree to exact versions + PyPI sha256; regenerate it with `dind/gen-azure-hashes.sh`
 after bumping `AZURE_CLI_VERSION` (the version lives in the lockfile). AWS CLI is an apk package (verified by apk). The verifier is
-exposed as `jarvis-verify-sha256 <file> <sha256>`; CI reuses it to check its goss binary (against
+exposed as `jarvis-verify-sha256 <file> <sha256>`; CI reuses it to check its goss download (against
 the pinned per-arch `GOSS_SHA256_{AMD64,ARM64}`) and the `dgoss` script (pinned via `DGOSS_SHA256`).
+Since goss v0.4.10 that download is a per-arch **tarball** (`goss_<ver>_linux_{x86_64,arm64}.tar.gz`,
+renamed upstream from the old raw `goss-linux-<arch>` binaries), so the pinned digest is the
+tarball's and the CI step extracts `goss` from it - `common/deps.sh` refreshes the same URLs.
 
 **Dependency automation.** These hand-pinned versions are kept fresh by three cooperating
 pieces (Dependabot only covers github-actions - `FROM ${BASE_IMAGE}` and the jarvis-* pins
