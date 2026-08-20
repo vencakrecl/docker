@@ -1,4 +1,5 @@
-# Dependabot config. Only github-actions is tracked here: every image's
+# Dependabot config. github-actions is the only ecosystem it *updates* here (the pip
+# entry below only exists to constrain security updates): every image's
 # Dockerfile references its base via `FROM ${BASE_IMAGE}` (the Makefile owns the
 # tag), and Dependabot's docker ecosystem cannot resolve ARG-interpolated FROM
 # lines (dependabot/dependabot-core#2057, #4597, #10190), so a `docker` entry
@@ -14,6 +15,28 @@ updates:
       github-actions:
         patterns:
           - "*"
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+
+  # dind/azure-cli-requirements.txt is a *generated* lockfile (dind/gen-azure-hashes.sh):
+  # every pin is what azure-cli's own resolver picked, so Dependabot must not raise a pin
+  # past azure-cli's constraints - pip runs under --require-hashes and the build fails
+  # closed. Version updates are off (limit 0); security updates still come through, but
+  # paramiko >= 4 is ignored because azure-cli (through 2.89.1) requires paramiko<4.0.0,
+  # so such a bump can never install (this is what broke CI in #17 / commit 9aab072).
+  # CVE-2026-44405 (GHSA-r374-rxx8-8654, low, SHA-1 in rsakey.py) has no fix in the 3.x
+  # line, so it stays until azure-cli relaxes the cap. Bump the rest by regenerating.
+  - package-ecosystem: pip
+    directory: /dind
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: paramiko
+        versions:
+          - ">=4.0.0"
     labels:
       - dependencies
     commit-message:
