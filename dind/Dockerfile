@@ -10,10 +10,7 @@ COPY dind/azure-cli-requirements.txt /usr/local/etc/azure-cli-requirements.txt
 ###< BASE IMAGE & TOOLBOX
 
 ###> CLOUD CLI
-# Optional cloud CLI, selected at build time: CLOUD=aws|gcloud|azure (empty = plain
-# dind). Each is installed via the shared jarvis-* commands (Alpine only, matching the dind base);
-# the daemon still runs rootless, so switch to root just for the install. gcloud uses
-# the system musl python3, hence CLOUDSDK_PYTHON. Tag suffix: -aws / -gcloud / -azure.
+# CLOUD selects an optional CLI; gcloud uses system Python on musl.
 ARG CLOUD=
 ENV CLOUDSDK_PYTHON=/usr/bin/python3
 USER root

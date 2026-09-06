@@ -32,10 +32,40 @@ Each command is a standalone script named `jarvis-<command>`:
 | `jarvis-install-pie` | PIE, the PHP extension installer |
 | `jarvis-install-castor` | Castor task runner (static binary) |
 | `jarvis-install-build-deps <pkgs...>` / `jarvis-remove-build-deps` | install the pecl/pie toolchain as a removable group, then drop what was added |
-| `jarvis-install-pie-ext <ext...>` | install + enable PHP extension(s) via PIE |
-| `jarvis-install-pecl-ext <ext...>` | install + enable PHP extension(s) via PECL |
-| `jarvis-install-docker-ext <ext...>` | install + enable PHP extension(s) via `docker-php-ext-install` |
+| `jarvis-install-docker-ext <ext...>` | first choice for extensions bundled with PHP |
+| `jarvis-install-pie-ext <ext...>` | install + enable external PHP extensions via PIE |
+| `jarvis-install-pecl-ext <ext...>` | legacy fallback when PIE cannot provide the extension/version |
 | `jarvis-install-aws-cli` / `jarvis-install-gcloud` / `jarvis-install-azure-cli` | cloud CLI for the `dind` variants (Alpine only) |
+
+On Debian, `jarvis-install-runtime-deps` also accepts native
+[APT package-name patterns](https://manpages.debian.org/bookworm/apt/apt-patterns.7.en.html).
+The web images declare ICU, ZIP, and PNG runtime libraries in `runtime_deps` using
+anchored patterns, so ABI suffixes can vary with the Debian release without also
+matching development packages. They are installed explicitly before build dependencies,
+which keeps them through `apt-get purge --auto-remove`. PNG's pattern also accepts
+the `t64` suffix and excludes virtual package names such as `libpng12-0`.
+Quote patterns passed directly to the command; use `set -f` before expanding a
+whitespace-separated package list to disable shell filename expansion.
+
+Production and dev Dockerfiles pass extension package names to PIE without version
+pins, so PIE resolves compatible releases at build time. `igbinary/igbinary:@RC`
+allows release candidates because PIE currently has no compatible stable release.
+
+Prefer `jarvis-install-docker-ext` → `jarvis-install-pie-ext` →
+`jarvis-install-pecl-ext`. The current images use bundled PHP source and PIE only;
+keep PECL for unsupported external packages. A PIE package named `pecl/pcov` uses
+PIE, despite its namespace.
+
+Pass configure flags as part of a quoted extension argument:
+
+```sh
+jarvis-install-docker-ext mysqli intl zip "gd --with-freetype --with-jpeg --with-webp"
+```
+
+The installer configures extensions that have flags, then installs the full list
+in one call. Each specification is split on whitespace; use `--option=value`
+without spaces in the value. GD needs these flags to enable FreeType, JPEG, and
+WebP support; installing their libraries alone does not enable those features.
 
 Tool versions/digests are pinned at the top of each installer that owns them:
 `S6_OVERLAY_*` in `jarvis-install-s6-overlay`, `COMPOSER_*` in `jarvis-install-composer`,
@@ -56,7 +86,7 @@ make dind-aws           # dind + AWS CLI (also dind-gcloud, dind-azure)
 make help               # list targets
 ```
 
-Overridable variables: `PHP_VERSION` (default 8.4), `DOCKER_VERSION` (default 29,
+Overridable variables: `PHP_VERSION` (default 8.5), `DOCKER_VERSION` (default 29,
 dind), `REGISTRY` (tag prefix, empty = local), `PLATFORM` (empty = host arch).
 
 Local `make` builds use `--load`, which is host-arch only. Multi-arch images are a

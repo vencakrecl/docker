@@ -1,9 +1,4 @@
-# Install the framework example apps for local testing with the per-framework
-# docker-compose.yml files. Run from the repo root (make -C examples <target>) or
-# from here (make <target>). Only the compose files are committed; each skeleton is
-# installed into <framework>/app (git-ignored) via a throwaway container - no host
-# PHP/Composer needed. Then, from the repo root:
-#   docker compose -f examples/<framework>/docker-compose.yml up --build
+# Install example apps: make -C examples <framework>. See examples/README.md.
 
 COMPOSER_IMAGE ?= composer:2
 

@@ -1,19 +1,7 @@
 #!/usr/bin/env bash
-# deps.sh - dependency automation for the hand-pinned tools (the ones Dependabot/Renovate
-# can't fully manage). Two modes:
-#
-#   deps.sh check                     report pinned vs latest upstream for every tool
-#                                      (exit 3 if any are outdated; used by the weekly CI job)
-#   deps.sh refresh-digests [tool...] recompute each tool's *_SHA256 from the artifact at its
-#                                      CURRENTLY pinned version and rewrite it in place
-#                                      (no args = all; e.g. `refresh-digests s6 composer`)
-#
-# Verifying digests has no separate mode: run `refresh-digests` then `git diff --exit-code`
-# (the CI job does this) - a nonzero diff means a pinned digest drifted from upstream.
-#
-# Tools: s6-overlay, composer, pie, castor, goss (Renovate-managed versions) + gcloud,
-# azure-cli (no standard Renovate datasource - reported here only). Needs curl + a sha256
-# tool (sha256sum or shasum); portable across Linux CI and macOS.
+# Usage: deps.sh check | refresh-digests [tool...]
+# check exits 3 for outdated pins; refresh-digests rewrites hashes at the pinned versions.
+# Requires curl and sha256sum or shasum. See docs/building.md.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -37,8 +25,7 @@ pin() { sed -n "s/^$1=\"\${$1:-\(.*\)}\"\$/\1/p" "$2"; }
 # pinned `  KEY: value` from ci.yml
 ci_pin() { sed -n "s/^[[:space:]]*$1:[[:space:]]*\(.*\)\$/\1/p" "$CI" | head -1; }
 
-# rewrite VAR's default in a jarvis-* file, in place: set_pin <VAR> <val> <file>. `cat >`
-# rewrites the existing file's contents so its 0755 mode is preserved (unlike `mv tmp file`).
+# Rewrite in place to preserve executable permissions; mv would replace the file mode.
 set_pin() {
     local var=$1 val=$2 file=$3 tmp; tmp=$(mktemp)
     awk -v v="$var" -v n="$val" 'index($0,v"=\"${"v":-")==1{sub(/:-[^}]*}/,":-"n"}")}1' "$file" >"$tmp"
@@ -57,9 +44,7 @@ composer_latest() { curl -fsSL "https://getcomposer.org/versions" | sed -n 's/.*
 gcloud_latest()   { curl -fsSL "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json" | sed -n 's/.*"version": *"\([0-9.]*\)".*/\1/p' | head -1; }
 azure_latest()    { curl -fsSL "https://pypi.org/pypi/azure-cli/json" | sed -n 's/.*"version":"\([0-9][^"]*\)".*/\1/p' | head -1; }
 
-# download <url> -> temp file path (echoed). Fails hard: without the explicit `return`,
-# curl's error would be masked by the trailing `echo` and the sha256 of an empty file
-# (e3b0c442...) would be pinned silently - which is what a renamed upstream asset looks like.
+# Return on download failure so the trailing echo cannot mask it and pin an empty file.
 fetch() {
     local d; d=$(mktemp)
     curl -fsSL "$1" -o "$d" || { rm -f "$d"; echo "$0: download failed: $1" >&2; return 1; }
@@ -123,8 +108,7 @@ refresh_castor() {
     echo "  castor $v: refreshed"
 }
 refresh_goss() {
-    # since v0.4.10 goss ships per-arch *tarballs* (`goss_<ver>_linux_<arch>.tar.gz`), not
-    # raw binaries - so the pinned digest is the tarball's and CI extracts the binary.
+    # Hash the goss tarball, matching the CI download.
     local v d base; v=$(ci_pin GOSS_VERSION)
     base="https://github.com/goss-org/goss/releases/download/${v}/goss_$(strip_v "$v")_linux"
     d=$(fetch "${base}_x86_64.tar.gz"); set_ci GOSS_SHA256_AMD64 "$(sha256 "$d")"; rm -f "$d"

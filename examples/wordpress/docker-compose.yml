@@ -1,30 +1,13 @@
-# WordPress on fpm-nginx, built by DERIVING from the fpm-nginx image (see ./Dockerfile).
-# The extra extension (gd) is added downstream with the image's baked-in `jarvis-*` commands - not
-# build-args - which is the intended way to extend these images as a base (mysqli is
-# already a base default).
-#
-# From the repo root:
-#   make fpm-nginx-alpine                        # build the base image the Dockerfile derives from
-#   make -C examples wordpress                   # download WP core into wordpress/app
-#   docker compose -f examples/wordpress/docker-compose.yml up --build -d
-#   curl -L localhost:8081/
-#   docker compose -f examples/wordpress/docker-compose.yml down
-#
-# WordPress serves from the project root (docroot = /app) and needs a database, so a
-# MariaDB `db` service is included and a fresh core reaches the setup wizard. This uses
-# plain WordPress core (not the official `wordpress` image), so there is no entrypoint to
-# generate wp-config.php - complete setup in the browser wizard with:
-#   database host=db  name=wordpress  user=wordpress  password=wordpress
+# Setup: examples/README.md. Build fpm-nginx-alpine before this derived image.
+# Complete the WordPress browser wizard with host=db and name/user/password=wordpress.
 name: example-wordpress
 
 services:
   fpm-nginx:
-    # Derives from fpm-nginx and adds gd (see ./Dockerfile). The build context
-    # is this folder - the `jarvis-*` commands are already in the base image, nothing to COPY from the repo.
     build:
       context: .
       # Override the base tag if you built a different PHP version, e.g.:
-      # args: { BASE_IMAGE: fpm-nginx:8.4-alpine }
+      # args: { BASE_IMAGE: fpm-nginx:8.5-alpine }
     # PHP is tuned via the image's env knobs (common/php.ini), not a mounted php.ini.
     environment:
       SERVER_ROOT: /app

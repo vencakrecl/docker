@@ -1,13 +1,5 @@
-# Example Compose setup for local development with these images.
-#
-# The web images listen on 8080 and run unprivileged (www-data). To have
-# bind-mounted files owned by your host user on Linux, pass your uid/gid:
-#
-#   USER_ID=$(id -u) GROUP_ID=$(id -g) \
-#     docker compose -f docker-compose.example.yml up --build
-#
-# On Docker Desktop (macOS/Windows) the USER_ID/GROUP_ID args are unnecessary -
-# bind-mount ownership is mapped to your host user automatically.
+# On Linux, match bind-mount ownership:
+#   USER_ID=$(id -u) GROUP_ID=$(id -g) docker compose -f docker-compose.example.yml up --build
 
 services:
   app:
@@ -15,11 +7,11 @@ services:
       context: .                        # repo root: the Dockerfiles COPY common/*
       dockerfile: fpm-nginx/Dockerfile
       args:
-        BASE_IMAGE: php:8.4-fpm-alpine
+        BASE_IMAGE: php:8.5-fpm-alpine
         USER_ID: ${USER_ID:-}           # empty = hardened default (uid 82)
         GROUP_ID: ${GROUP_ID:-}
     # Once the images are published, drop `build:` and use e.g.:
-    #   image: ghcr.io/<owner>/fpm-nginx:8.4-alpine
+    #   image: ghcr.io/<owner>/fpm-nginx:8.5-alpine
     ports:
       - "8080:8080"                     # host:container (container listens on 8080)
     environment:

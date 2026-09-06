@@ -4,7 +4,6 @@
 set -eu
 me="${0##*/}"
 
-# validate input + usage
 case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
 [ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
 
@@ -31,7 +30,6 @@ case "$(jarvis-detect-os)" in
 esac
 base="https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}"
 tmp="$(mktemp -d)"
-# Verify each tarball against its pinned digest (not a same-origin sidecar) before extracting.
 for asset in "noarch:$S6_OVERLAY_SHA256_NOARCH" "$s6arch:$archsum"; do
     name="${asset%%:*}"; want="${asset#*:}"
     _fetch "$base/s6-overlay-${name}.tar.xz" "$tmp/${name}.tar.xz"

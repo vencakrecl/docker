@@ -4,7 +4,6 @@
 set -eu
 me="${0##*/}"
 
-# validate input + usage
 case "${1:-}" in -h|--help) echo "usage: $me <ext>..."; exit 0 ;; esac
 [ "$#" -ge 1 ] || { echo "usage: $me <ext>..." >&2; exit 2; }
 

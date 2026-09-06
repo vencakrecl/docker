@@ -2,6 +2,10 @@
 .idea
 .vscode
 
-# AI
+# Local AI configuration
 .claude/settings.local.json
-.claude/worktrees
+.claude/worktrees/
+.codex/config.toml
+.codex/rules/local.rules
+.gemini/.env
+.gemini/antigravity-cli/

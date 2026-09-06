@@ -1,9 +1,5 @@
-# Runtime checks for a running rootless dind container (dgoss run --privileged ...).
-# The daemon runs as the unprivileged "rootless" user (uid 1000) via rootlesskit.
-# NB: goss renders goss.yaml (comments included) through Go templating first, so
-# avoid Go-template brace syntax anywhere here.
-# Rootless dockerd listens on a per-user socket, so DOCKER_HOST must point at it;
-# `docker version` returns non-zero if the daemon is unreachable.
+# Run with dgoss run --privileged <image>.
+# Goss templates comments too; avoid Go-template brace syntax.
 process:
   dockerd:
     running: true

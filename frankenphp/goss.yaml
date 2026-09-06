@@ -1,6 +1,46 @@
-# Runtime checks for a running frankenphp container (dgoss run ...).
-# Runs unprivileged as www-data; SERVER_NAME=:8080 serves plain HTTP on 8080.
 command:
+  gd-format-support:
+    exec: >-
+      php -r '$gd = gd_info(); foreach (["FreeType Support", "JPEG Support", "PNG Support", "WebP Support"] as $feature) { if (empty($gd[$feature])) { fwrite(STDERR, "Missing GD feature: " . $feature); exit(1); } } echo "enabled";'
+    exit-status: 0
+    stdout: ["enabled"]
+  enabled-extensions:
+    exec: php -m
+    exit-status: 0
+    stdout:
+      - "/^apcu$/"
+      - "/^bcmath$/"
+      - "/^ctype$/"
+      - "/^curl$/"
+      - "/^dom$/"
+      - "/^exif$/"
+      - "/^fileinfo$/"
+      - "/^filter$/"
+      - "/^gd$/"
+      - "/^hash$/"
+      - "/^iconv$/"
+      - "/^igbinary$/"
+      - "/^imagick$/"
+      - "/^intl$/"
+      - "/^json$/"
+      - "/^libxml$/"
+      - "/^mbstring$/"
+      - "/^mysqli$/"
+      - "/^openssl$/"
+      - "/^pcntl$/"
+      - "/^pcre$/"
+      - "/^PDO$/"
+      - "/^pdo_mysql$/"
+      - "/^pdo_pgsql$/"
+      - "/^pdo_sqlite$/"
+      - "/^redis$/"
+      - "/^session$/"
+      - "/^SimpleXML$/"
+      - "/^tokenizer$/"
+      - "/^xml$/"
+      - "/^xmlreader$/"
+      - "/^xmlwriter$/"
+      - "/^zip$/"
   runs-as-non-root:
     exec: id -u
     exit-status: 0
@@ -10,28 +50,16 @@ command:
     exec: php -r 'echo 40 + 2;'
     exit-status: 0
     stdout: ["42"]
-  # Default extension set baked in at build (two per install manager: docker-php-ext,
-  # PECL, PIE). Downstream apps extend these by deriving + `helper` (see examples/wordpress).
-  default-extensions:
-    exec: php -m
-    exit-status: 0
-    stdout: ["mysqli", "bcmath", "redis", "apcu", "ds", "opentelemetry"]
-  # The container HEALTHCHECK probe: GETs $HEALTHCHECK_PATH and exits 0 on 2xx,
-  # exercising FrankenPHP -> PHP end-to-end.
   healthcheck:
     exec: healthcheck
     exit-status: 0
-  # Compression: Caddy's `encode zstd br gzip` (Caddyfile), brotli preferred (gzip fallback).
-  # Write a compressible asset over Caddy's 512B minimum_length and assert Content-Encoding br.
   compression-brotli:
     exec: |
       head -c 1024 /dev/zero | tr '\0' x > ${SERVER_ROOT}/__goss_compress.css
       curl -s -D - -o /dev/null -H 'Accept-Encoding: br, gzip' http://127.0.0.1:8080/__goss_compress.css
     exit-status: 0
     stdout: ["Content-Encoding: br"]
-  # One test per common/php.ini env knob (set inline; php re-parses config each run).
-  # Proves the ${VAR:-default} expansion in our php.ini works. frankenphp embeds PHP
-  # (no php-fpm), so there are no PHP_FPM_* knobs.
+  # PHP re-parses configuration, so environment overrides can be tested inline.
   env-php-memory-limit:
     exec: env PHP_MEMORY_LIMIT=512M php -r 'echo ini_get("memory_limit");'
     exit-status: 0
@@ -88,9 +116,7 @@ command:
     exec: env PHP_REALPATH_CACHE_TTL=600 php -r 'echo ini_get("realpath_cache_ttl");'
     exit-status: 0
     stdout: ["600"]
-  # --- Error-logging knobs (common/php.ini): errors go to stderr, display_errors off by
-  # default. Set inline, asserted via ini_get. error_reporting is set to a fixed number
-  # (not E_ALL, whose numeric value is PHP-version-specific). ---
+  # Use a fixed error_reporting number; E_ALL varies by PHP version.
   env-php-log-errors:
     exec: env PHP_LOG_ERRORS=Off php -r 'echo ini_get("log_errors");'
     exit-status: 0
@@ -121,8 +147,6 @@ http:
     status: 200
     body: ["Hello, World!"]
     timeout: 5000
-  # Front-controller fallback: an unknown path routes to index.php (not 404), via Caddy's
-  # php_server try_files. Same guarantee as nginx try_files / Apache mod_rewrite.
   http://localhost:8080/no/such/route:
     status: 200
     body: ["Hello, World!"]

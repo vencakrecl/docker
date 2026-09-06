@@ -1,7 +1,5 @@
-# Runtime checks for the dind -gcloud variant: the base dind checks (see goss.yaml)
-# plus a Google Cloud CLI probe. Run with `dgoss run --privileged`
-# (GOSS_FILE=goss.gcloud.yaml). NB: goss renders this file through Go templating
-# first, so avoid brace syntax here.
+# Run with GOSS_FILE=goss.gcloud.yaml dgoss run --privileged <image>.
+# Goss templates comments too; avoid Go-template brace syntax.
 process:
   dockerd:
     running: true

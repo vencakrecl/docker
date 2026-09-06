@@ -1,7 +1,45 @@
-# Smoke test for the `-dev` image variants: the dev toolbox is present and loadable.
-# Run against a <php>-<os>-dev image (see `make test-dev-*`). This is separate from the
-# per-image goss.yaml (which covers the prod runtime) - it only checks the dev tools.
+# Dev toolbox smoke tests; run via make test-dev-fpm-nginx.
 command:
+  enabled-extensions:
+    exec: php -m
+    exit-status: 0
+    stdout:
+      - "/^apcu$/"
+      - "/^bcmath$/"
+      - "/^ctype$/"
+      - "/^curl$/"
+      - "/^dom$/"
+      - "/^exif$/"
+      - "/^fileinfo$/"
+      - "/^filter$/"
+      - "/^gd$/"
+      - "/^hash$/"
+      - "/^iconv$/"
+      - "/^igbinary$/"
+      - "/^imagick$/"
+      - "/^intl$/"
+      - "/^json$/"
+      - "/^libxml$/"
+      - "/^mbstring$/"
+      - "/^mysqli$/"
+      - "/^openssl$/"
+      - "/^pcntl$/"
+      - "/^pcov$/"
+      - "/^pcre$/"
+      - "/^PDO$/"
+      - "/^pdo_mysql$/"
+      - "/^pdo_pgsql$/"
+      - "/^pdo_sqlite$/"
+      - "/^redis$/"
+      - "/^session$/"
+      - "/^SimpleXML$/"
+      - "/^SPX$/"
+      - "/^tokenizer$/"
+      - "/^xdebug$/"
+      - "/^xml$/"
+      - "/^xmlreader$/"
+      - "/^xmlwriter$/"
+      - "/^zip$/"
   composer:
     exec: composer --version --no-interaction
     exit-status: 0
@@ -9,18 +47,6 @@ command:
   castor:
     exec: castor --version
     exit-status: 0
-  xdebug-loaded:
-    exec: php -m
-    exit-status: 0
-    stdout: ["xdebug"]
-  pcov-loaded:
-    exec: php -m
-    exit-status: 0
-    stdout: ["pcov"]
-  spx-loaded:
-    exec: php -m
-    exit-status: 0
-    stdout: ["SPX"]
   # xdebug ships OFF by default (zero overhead) ...
   xdebug-off-by-default:
     exec: php -r 'echo ini_get("xdebug.mode");'

@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/vencakrecl/docker/actions/workflows/ci.yml/badge.svg)](https://github.com/vencakrecl/docker/actions/workflows/ci.yml)
 
-Collection of Docker images. Every image is multi-arch (`linux/amd64` + `linux/arm64`) and
-ships in **Debian** and **Alpine** variants.
+Collection of Docker images targeting `linux/amd64` and `linux/arm64`. The web
+images ship in **Debian** and **Alpine** variants; rootless `dind` is **Alpine-only**.
 
 ## Images
 
@@ -24,8 +24,8 @@ uid 1000) - though the container itself still needs `--privileged`.
 
 ```sh
 # Pull a published image (GHCR, or Docker Hub when configured)
-docker pull ghcr.io/vencakrecl/fpm-nginx:8.4-alpine
-docker pull docker.io/vencakrecl/fpm-nginx:8.4-alpine
+docker pull ghcr.io/vencakrecl/fpm-nginx:8.5-alpine
+docker pull docker.io/vencakrecl/fpm-nginx:8.5-alpine
 
 # ...or build one locally
 make fpm-nginx-alpine

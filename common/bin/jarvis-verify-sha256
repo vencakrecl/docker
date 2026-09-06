@@ -4,7 +4,6 @@
 set -eu
 me="${0##*/}"
 
-# validate input + usage
 case "${1:-}" in -h|--help) echo "usage: $me <file> <sha256>"; exit 0 ;; esac
 [ "$#" -eq 2 ] || { echo "usage: $me <file> <sha256>" >&2; exit 2; }
 

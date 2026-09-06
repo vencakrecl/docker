@@ -1,13 +1,50 @@
-# Runtime checks for a running fpm-apache container (dgoss run ...).
-# s6-overlay brings up php-fpm and Apache; the hello-world index.php is proxied
-# to php-fpm and served at / (200), proving PHP executes end-to-end through Apache.
-# No web-server process check: Apache's process is httpd on Alpine, apache2 on
-# Debian. HTTP is used instead of a port check (Apache binds IPv6 on Alpine,
-# IPv4 on Debian).
+# Use HTTP checks: Apache process names and bind address families differ by distro.
 process:
   php-fpm:
     running: true
 command:
+  gd-format-support:
+    exec: >-
+      php -r '$gd = gd_info(); foreach (["FreeType Support", "JPEG Support", "PNG Support", "WebP Support"] as $feature) { if (empty($gd[$feature])) { fwrite(STDERR, "Missing GD feature: " . $feature); exit(1); } } echo "enabled";'
+    exit-status: 0
+    stdout: ["enabled"]
+  enabled-extensions:
+    exec: php -m
+    exit-status: 0
+    stdout:
+      - "/^apcu$/"
+      - "/^bcmath$/"
+      - "/^ctype$/"
+      - "/^curl$/"
+      - "/^dom$/"
+      - "/^exif$/"
+      - "/^fileinfo$/"
+      - "/^filter$/"
+      - "/^gd$/"
+      - "/^hash$/"
+      - "/^iconv$/"
+      - "/^igbinary$/"
+      - "/^imagick$/"
+      - "/^intl$/"
+      - "/^json$/"
+      - "/^libxml$/"
+      - "/^mbstring$/"
+      - "/^mysqli$/"
+      - "/^openssl$/"
+      - "/^pcntl$/"
+      - "/^pcre$/"
+      - "/^PDO$/"
+      - "/^pdo_mysql$/"
+      - "/^pdo_pgsql$/"
+      - "/^pdo_sqlite$/"
+      - "/^redis$/"
+      - "/^session$/"
+      - "/^SimpleXML$/"
+      - "/^tokenizer$/"
+      - "/^xml$/"
+      - "/^xmlreader$/"
+      - "/^xmlwriter$/"
+      - "/^zip$/"
   runs-as-non-root:
     exec: id -u
     exit-status: 0
@@ -17,39 +54,22 @@ command:
     exec: php -r 'echo 40 + 2;'
     exit-status: 0
     stdout: ["42"]
-  # Default extension set baked in at build (two per install manager: docker-php-ext,
-  # PECL, PIE). Downstream apps extend these by deriving + `helper` (see examples/wordpress).
-  default-extensions:
-    exec: php -m
-    exit-status: 0
-    stdout: ["mysqli", "bcmath", "redis", "apcu", "ds", "opentelemetry"]
-  # The container HEALTHCHECK probe: GETs $HEALTHCHECK_PATH and exits 0 on 2xx,
-  # exercising Apache -> php-fpm -> PHP end-to-end.
   healthcheck:
     exec: healthcheck
     exit-status: 0
-  # Compression: brotli preferred (gzip fallback), driven by mod_filter (Apache won't
-  # self-negotiate br-vs-gzip). Write a compressible asset and assert the negotiated
-  # Content-Encoding is br - proves mod_brotli/mod_filter loaded and the providers dispatch.
   compression-brotli:
     exec: |
       head -c 1024 /dev/zero | tr '\0' x > ${SERVER_ROOT}/__goss_compress.css
       curl -s -D - -o /dev/null -H 'Accept-Encoding: br, gzip' http://127.0.0.1:8080/__goss_compress.css
     exit-status: 0
     stdout: ["Content-Encoding: br"]
-  # Apache logs to the container's std streams (docker logs), not to files under
-  # /var/log/apache2. The vhost ships ErrorLog /dev/stderr + CustomLog /dev/stdout;
-  # the base per-distro file logs are disabled/redirected in the Dockerfile.
   apache-logs-to-std-streams:
     exec: grep -hE '^\s*(ErrorLog|CustomLog)' /etc/apache2/fpm-vhost.conf
     exit-status: 0
     stdout:
       - "/dev/stderr"
       - "/dev/stdout"
-  # --- one test per env var: set it inline; php/php-fpm re-parse config each run.
-  # These also prove the shared config is loaded (e.g. max_children=40 comes from
-  # our env-driven common/php-fpm.conf; the base image would show its hardcoded 5)
-  # and valid (php-fpm -tt exits 0). ---
+  # PHP/FPM re-parse configuration, so environment overrides can be tested inline.
   env-php-memory-limit:
     exec: env PHP_MEMORY_LIMIT=512M php -r 'echo ini_get("memory_limit");'
     exit-status: 0
@@ -106,9 +126,7 @@ command:
     exec: env PHP_REALPATH_CACHE_TTL=600 php -r 'echo ini_get("realpath_cache_ttl");'
     exit-status: 0
     stdout: ["600"]
-  # --- Error-logging knobs (common/php.ini): errors go to stderr, display_errors off by
-  # default. Set inline, asserted via ini_get. error_reporting is set to a fixed number
-  # (not E_ALL, whose numeric value is PHP-version-specific). ---
+  # Use a fixed error_reporting number; E_ALL varies by PHP version.
   env-php-log-errors:
     exec: env PHP_LOG_ERRORS=Off php -r 'echo ini_get("log_errors");'
     exit-status: 0
@@ -153,8 +171,7 @@ command:
     exec: env PHP_FPM_PM_MAX_REQUESTS=500 php-fpm -tt
     exit-status: 0
     stderr: ["pm.max_requests = 500"]
-  # FPM logging knobs (common/php-fpm.conf): the base image already routes FPM to stderr;
-  # these prove our overrides load. php-fpm -tt dumps the effective config to stderr.
+  # php-fpm -tt writes effective configuration to stderr.
   env-php-fpm-log-level:
     exec: env PHP_FPM_LOG_LEVEL=debug php-fpm -tt
     exit-status: 0
@@ -173,14 +190,10 @@ http:
     status: 200
     body: ["pong"]
     timeout: 5000
-  # End-to-end: / serves index.php through Apache -> php-fpm -> PHP. On Alpine this
-  # now executes (apache2-proxy installed) rather than serving the .php source.
   http://localhost:8080/:
     status: 200
     body: ["Hello, World!"]
     timeout: 5000
-  # Front-controller fallback: an unknown path routes to index.php (not 404), matching
-  # nginx try_files / Caddy php_server. Guards the vhost mod_rewrite rule.
   http://localhost:8080/no/such/route:
     status: 200
     body: ["Hello, World!"]

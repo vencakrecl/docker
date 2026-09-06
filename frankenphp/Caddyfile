@@ -1,5 +1,3 @@
-# FrankenPHP + Caddy config, loaded via the base CMD's `--config /etc/frankenphp/Caddyfile`.
-# Owns the base image's env-driven config, trimmed of the upstream Mercure/Vulcain blocks.
 {
 	# Plain HTTP on :8080 (SERVER_NAME); no local cert-trust install.
 	skip_install_trust
