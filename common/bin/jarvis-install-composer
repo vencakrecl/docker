@@ -4,7 +4,6 @@
 set -eu
 me="${0##*/}"
 
-# validate input + usage
 case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
 [ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
 
@@ -24,5 +23,4 @@ jarvis-verify-sha256 "$tmp/composer.phar" "$COMPOSER_SHA256"
 install -m 0755 "$tmp/composer.phar" /usr/local/bin/composer
 rm -rf "$tmp"
 
-# report installed version (or fail loudly via set -e if it can't run)
 echo "$me: installed $(composer --version --no-interaction)"

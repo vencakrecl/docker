@@ -1,37 +1,19 @@
-# Local Docker image builds.
-#
-# Each image has a single Dockerfile that receives its base image via the
-# BASE_IMAGE build arg; the common/bin/jarvis-* commands abstract apt vs apk (and
-# more) so the same Dockerfile works for Debian and Alpine bases.
-#
-# The build context is the repo root (note the trailing `.` and `-f <image>/Dockerfile`)
-# so every Dockerfile can COPY the shared common/bin/ toolbox.
-#
-# Local builds target the host platform only: `docker buildx build --load` cannot
-# load a multi-platform manifest into the engine. Multi-arch (amd64+arm64) images
-# are produced at push time. See https://docs.docker.com/build/building/multi-platform/
+# Build from the repo root so Dockerfiles can COPY common/. See docs/building.md.
 
-PHP_VERSION    ?= 8.4
+PHP_VERSION    ?= 8.5
 DOCKER_VERSION ?= 29
 REGISTRY       ?=
 PLATFORM       ?=
 
-# Output/cache control. Default `--load` builds a single (host) arch into the local
-# engine for testing. To build+push a multi-arch manifest (CI push job):
-#   make fpm-nginx-alpine REGISTRY=ghcr.io/owner/ OUTPUT=--push PLATFORM=linux/amd64,linux/arm64
-# CACHE lets CI pass buildx cache flags (e.g. --cache-from/--cache-to type=gha).
+# Multi-arch push: OUTPUT=--push PLATFORM=linux/amd64,linux/arm64 REGISTRY=ghcr.io/owner/
 OUTPUT ?= --load
 CACHE  ?=
 
-# For local development: set USER_ID/GROUP_ID to match your host user so
-# bind-mounted files get the right owner (Linux hosts). Only passed when set.
-#   make fpm-nginx-alpine USER_ID=$(id -u) GROUP_ID=$(id -g)
+# Match bind-mount ownership on Linux: USER_ID=$(id -u) GROUP_ID=$(id -g).
 USER_ID  ?=
 GROUP_ID ?=
 
 # $(call build,<image>,<base-image>,<tag>[,<target>])
-# The optional 4th arg selects a Dockerfile stage (--target); omitted = the default
-# (last) stage, which is the lean prod image. The dev targets pass `dev`.
 BUILDX = docker buildx build $(OUTPUT) $(CACHE) $(if $(PLATFORM),--platform $(PLATFORM))
 define build
 	$(BUILDX) \
@@ -72,11 +54,6 @@ frankenphp-alpine:
 	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-alpine,$(PHP_VERSION)-alpine)
 
 # --- dev variants ------------------------------------------------------------
-# Each web image's Dockerfile has a `dev` stage (--target dev) that layers the dev
-# toolbox onto the lean image: composer, castor, and the xdebug/pcov/spx extensions.
-# The extension list + its distro-specific build headers are defined in the Dockerfile's
-# `dev` stage (explicit `jarvis-install-*-ext` calls; xdebug off by default, see
-# common/dev.ini), so these targets just select the stage. Tag: <php>-<os>-dev.
 .PHONY: dev
 dev: fpm-nginx-dev fpm-apache-dev frankenphp-dev ## Build the dev variants of the web images (both OS)
 
@@ -101,16 +78,11 @@ frankenphp-dev-debian:
 frankenphp-dev-alpine:
 	$(call build,frankenphp,dunglas/frankenphp:php$(PHP_VERSION)-alpine,$(PHP_VERSION)-alpine-dev,dev)
 
-# --- dind --------------------------------------------------------------------
-# Rootless dind is Alpine-only upstream, so dind is a single variant. The tag is
-# `-rootless` (not an OS): the meaningful trait is that the daemon runs rootless.
+# --- dind (Alpine-only) -------------------------------------------------------
 .PHONY: dind
 dind:
 	$(call build,dind,docker:$(DOCKER_VERSION)-dind-rootless,$(DOCKER_VERSION)-rootless)
 
-# Cloud CLI variants: same dind image + one cloud CLI, selected by the CLOUD build
-# arg (see dind/Dockerfile). Tag suffix names the trait, like -rootless does:
-# <docker>-rootless-<cloud>. Alpine only (the dind base is Alpine).
 .PHONY: dind-aws dind-gcloud dind-azure
 dind-aws: CLOUD = aws
 dind-aws:
@@ -122,10 +94,7 @@ dind-azure: CLOUD = azure
 dind-azure:
 	$(call build,dind,docker:$(DOCKER_VERSION)-dind-rootless,$(DOCKER_VERSION)-rootless-azure)
 
-# --- tests -------------------------------------------------------------------
-# Runtime tests: each image is started and probed with goss (via dgoss) using the
-# <image>/goss.yaml in its directory. Tests the Alpine variant.
-# Requires goss + dgoss on PATH: https://github.com/goss-org/goss/tree/master/extras/dgoss
+# --- tests (Alpine; requires goss + dgoss) --------------------------------------
 GOSS_SLEEP ?= 6
 DGOSS = command -v dgoss >/dev/null 2>&1 || { echo "dgoss not on PATH - install goss + dgoss (extras/dgoss in goss-org/goss)"; exit 1; }; \
 	GOSS_SLEEP=$(GOSS_SLEEP) dgoss run
@@ -150,8 +119,6 @@ test-dind: GOSS_SLEEP = 15   # rootless dind (rootlesskit + network) needs longe
 test-dind: dind
 	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless
 
-# Cloud-variant tests: the base dind checks plus a "<cli> --version" probe, via each
-# image's goss.<cloud>.yaml (GOSS_FILE) instead of the prod goss.yaml.
 .PHONY: test-dind-aws test-dind-gcloud test-dind-azure
 test-dind-aws test-dind-gcloud test-dind-azure: GOSS_SLEEP = 15
 test-dind-aws: export GOSS_FILE = goss.aws.yaml
@@ -164,9 +131,6 @@ test-dind-azure: export GOSS_FILE = goss.azure.yaml
 test-dind-azure: dind-azure
 	cd dind && $(DGOSS) --privileged $(REGISTRY)dind:$(DOCKER_VERSION)-rootless-azure
 
-# Dev-variant smoke tests: assert the dev toolbox (composer, castor, xdebug, pcov, spx)
-# is present, using each image's <image>/goss.dev.yaml (GOSS_FILE) instead of its
-# prod <image>/goss.yaml. Runs the Alpine -dev tag.
 .PHONY: test-dev
 test-dev: test-dev-fpm-nginx test-dev-fpm-apache test-dev-frankenphp ## Runtime-test the dev variants (Alpine)
 
@@ -186,8 +150,6 @@ test-dev-frankenphp: frankenphp-dev-alpine
 	cd frankenphp && $(DGOSS) $(REGISTRY)frankenphp:$(PHP_VERSION)-alpine-dev
 
 # --- dependencies ------------------------------------------------------------
-# Freshness check + digest refresh for the hand-pinned tools (common/deps.sh). Renovate
-# opens the version-bump PRs (.github/renovate.json); after a bump, run `make bump-digests`.
 .PHONY: check-deps
 check-deps: ## Report pinned vs latest upstream for every hand-pinned tool
 	@bash common/deps.sh check

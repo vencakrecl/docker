@@ -1,13 +1,35 @@
 #!/bin/sh
-# Install + enable PHP extension(s) via docker-php-ext-install.
-# Usage: jarvis-install-docker-ext <ext>...
-set -eu
+# Configure, install + enable PHP extension(s) via the official PHP helpers.
+# Usage: jarvis-install-docker-ext <ext|"ext --option...">...
+set -efu
 me="${0##*/}"
+usage="usage: $me <ext|\"ext --option...\">..."
 
-# validate input + usage
-case "${1:-}" in -h|--help) echo "usage: $me <ext>..."; exit 0 ;; esac
-[ "$#" -ge 1 ] || { echo "usage: $me <ext>..." >&2; exit 2; }
+case "${1:-}" in -h|--help) echo "$usage"; exit 0 ;; esac
+[ "$#" -ge 1 ] || { echo "$usage" >&2; exit 2; }
 
-docker-php-ext-install -j"$(nproc 2>/dev/null || echo 1)" "$@"
+extensions=""
+for spec in "$@"; do
+    # Each quoted specification contains an extension and whitespace-separated flags.
+    set -- $spec
+    [ "$#" -ge 1 ] || { echo "$usage" >&2; exit 2; }
+    extension="$1"
+    shift
+    case "$extension" in
+        *[!a-zA-Z0-9_]*|'') echo "$me: invalid extension: $extension" >&2; exit 2 ;;
+    esac
+    for option in "$@"; do
+        case "$option" in
+            --*) ;;
+            *) echo "$me: expected --option for $extension: $option" >&2; exit 2 ;;
+        esac
+    done
+    if [ "$#" -gt 0 ]; then
+        docker-php-ext-configure "$extension" "$@"
+    fi
+    extensions="${extensions:+$extensions }$extension"
+done
 
-echo "$me: installed $*"
+docker-php-ext-install -j"$(nproc 2>/dev/null || echo 1)" $extensions
+
+echo "$me: installed $extensions"

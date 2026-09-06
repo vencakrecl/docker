@@ -24,9 +24,7 @@ python3 -m venv /venv
 /venv/bin/pip install --no-cache-dir --upgrade pip >/dev/null 2>&1
 /venv/bin/pip install --no-cache-dir "azure-cli==${AZURE_CLI_VERSION}" >/dev/null 2>&1
 
-# Exact resolved versions. Use `pip list` (not `pip freeze`, which hides
-# setuptools/wheel) and drop only pip itself: azure-cli has a runtime dep on setuptools,
-# so under --require-hashes it too must be pinned.
+# Use pip list: pip freeze hides setuptools/wheel, which must also be pinned.
 /venv/bin/pip list --format=freeze | grep -v -iE '^pip==' > /tmp/frozen.txt
 
 /venv/bin/python3 - "$AZURE_CLI_VERSION" <<'PY'

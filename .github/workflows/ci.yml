@@ -16,16 +16,14 @@ permissions:
 env:
   # renovate: datasource=github-releases depName=goss-org/goss
   GOSS_VERSION: v0.4.10
-  # goss + dgoss are verified against digests pinned here (never a checksum fetched from the
-  # same origin as the artifact - trust-on-first-use). Bump all three alongside GOSS_VERSION.
+  # Bump all three pinned digests alongside GOSS_VERSION.
   GOSS_SHA256_AMD64: 26e365428946294bcec0c61d867bb3c8349f39feb3d0e6f59084e98632785cc7
   GOSS_SHA256_ARM64: 90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6
   DGOSS_SHA256: 3bb3ac9df33eeab8ce71a35763f4a69582eceb7db7bf02b4d0a551e72c7a888d
   DOCKER_VERSION: "29" # dind tag (matches the Makefile default)
 
 jobs:
-  # Single source of truth for the image x PHP-version list, shared by
-  # build-php-image and release-php-image via fromJSON. Edit versions here only.
+  # Shared PHP targets for build and release jobs.
   matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -40,8 +38,6 @@ jobs:
           {"image":"frankenphp","php":"8.5"}
           ]' >> "$GITHUB_OUTPUT"
 
-  # One parallel job per (target x arch x os). Build, test, and (on main) push the
-  # tested image under a per-arch tag; release-php-image assembles the multi-arch tag.
   build-php-image:
     needs: matrix
     name: ${{ matrix.target.image }} ${{ matrix.target.php }}-${{ matrix.os }}${{ matrix.variant == 'dev' && '-dev' || '' }} (${{ matrix.arch }})
@@ -74,9 +70,7 @@ jobs:
         run: |
           arch=$(dpkg --print-architecture)
           tmp=$(mktemp -d)
-          # goss: verify against the pinned per-arch digest (not a same-origin sidecar).
-          # Since v0.4.10 goss ships per-arch tarballs, not raw binaries, so the digest is
-          # the tarball's and the binary is extracted from it.
+          # The pinned goss digest covers the tarball.
           case "$arch" in
             amd64) goss_arch=x86_64; goss_sha="$GOSS_SHA256_AMD64" ;;
             arm64) goss_arch=arm64;  goss_sha="$GOSS_SHA256_ARM64" ;;
@@ -101,10 +95,7 @@ jobs:
           else
             GOSS_SLEEP=8 dgoss run "$IMAGE:$TAG"
           fi
-      # Regression guard for graceful shutdown: `docker stop` must stop the container
-      # cleanly, not get SIGKILLed at the timeout. The s6 web images override the
-      # base's STOPSIGNAL (SIGQUIT->SIGTERM) so s6's shutdown handler fires; frankenphp
-      # (no s6) stops on the default SIGTERM. Fail on exit 137 or a timeout-length stop.
+      # Catch containers that require SIGKILL because graceful shutdown failed.
       - name: Graceful stop
         run: |
           cid=$(docker run -d "$IMAGE:$TAG")
@@ -144,8 +135,6 @@ jobs:
           docker push "$DOCKERHUB_REF"
 
   build-dind-image:
-    # suffix "" is plain rootless dind; -aws/-gcloud/-azure add a cloud CLI (see
-    # dind/Dockerfile CLOUD arg). make target / test target / tag all carry the suffix.
     name: dind${{ matrix.suffix }} (${{ matrix.arch }})
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     permissions:
@@ -168,9 +157,7 @@ jobs:
         run: |
           arch=$(dpkg --print-architecture)
           tmp=$(mktemp -d)
-          # goss: verify against the pinned per-arch digest (not a same-origin sidecar).
-          # Since v0.4.10 goss ships per-arch tarballs, not raw binaries, so the digest is
-          # the tarball's and the binary is extracted from it.
+          # The pinned goss digest covers the tarball.
           case "$arch" in
             amd64) goss_arch=x86_64; goss_sha="$GOSS_SHA256_AMD64" ;;
             arm64) goss_arch=arm64;  goss_sha="$GOSS_SHA256_ARM64" ;;
@@ -184,12 +171,8 @@ jobs:
           sh common/bin/jarvis-verify-sha256 "$tmp/dgoss" "$DGOSS_SHA256"
           sudo install -m 0755 "$tmp/goss" /usr/local/bin/goss
           sudo install -m 0755 "$tmp/dgoss" /usr/local/bin/dgoss
-      # ubuntu-24.04 runners set kernel.apparmor_restrict_unprivileged_userns=1,
-      # which blocks rootlesskit's user-namespace creation (fork/exec /proc/self/exe:
-      # operation not permitted) even inside a --privileged container - the restriction
-      # is a host kernel sysctl, not lifted by the container's apparmor=unconfined.
-      # rootlesskit lives inside the dind image, so a per-binary AppArmor profile
-      # doesn't apply; disable the restriction on this ephemeral runner instead.
+      # This host restriction blocks rootlesskit even with --privileged.
+      # Disable it only on the ephemeral CI runner.
       - name: Allow unprivileged user namespaces (rootless dind)
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Build + test

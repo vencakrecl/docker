@@ -4,7 +4,6 @@
 set -eu
 me="${0##*/}"
 
-# validate input + usage
 case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
 [ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
 
@@ -18,8 +17,7 @@ _fetch() {
     curl -fsSL "$1" -o "$2"
 }
 
-# gcloud bundles a glibc python that can't run on musl, so use system python3
-# (+bash, libc6-compat) and drop the bundled interpreter (google/cloud-sdk's approach).
+# Use system Python: the bundled glibc interpreter cannot run on musl.
 case "$(jarvis-detect-arch)" in
     amd64) gcarch=x86_64; want="$GCLOUD_SHA256_AMD64" ;;
     arm64) gcarch=arm;    want="$GCLOUD_SHA256_ARM64" ;;

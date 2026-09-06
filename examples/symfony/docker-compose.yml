@@ -1,29 +1,12 @@
-# Symfony on all three web images. Install the app first (from the repo root):
-#   make -C examples symfony
-#   docker compose -f examples/symfony/docker-compose.yml up --build -d
-#   curl localhost:8081/   # fpm-nginx   (8082 fpm-apache, 8083 frankenphp)
-#   docker compose -f examples/symfony/docker-compose.yml down
-#
-# Symfony's docroot is public/. The app is mounted read-write (it writes to var/);
-# on Linux match ownership via the image's USER_ID/GROUP_ID build args or `user:` here.
-# PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
-# Values follow Symfony's performance docs: https://symfony.com/doc/current/performance.html
-#
-# Production tuning (commented out - this compose is a dev profile with a mounted,
-# editable app). To run it production-shaped, uncomment the two blocks below AND set
-# APP_ENV=prod, then warm the cache (`bin/console cache:warmup`) so preload.php has a
-# prod container to load - the skeleton's config/preload.php is a file_exists no-op
-# until then. Preloading + validate_timestamps=0 snapshot code at container start, so
-# live edits to the mounted app are NOT picked up until you restart the container.
+# Setup and ports: examples/README.md; make -C examples symfony.
+# For the optional production settings below, set APP_ENV=prod and warm the cache.
+# Preloading disables live code updates; restart after changes.
 name: example-symfony
 
 x-app: &app
   environment:
     SERVER_ROOT: /app/public
-    # The container HEALTHCHECK defaults to /healthz (php-fpm ping), so it reports
-    # 'healthy' regardless of app routes - a bare skeleton no longer shows 'unhealthy'.
-    # Symfony has no built-in app-health route (unlike Laravel's /up); to validate the
-    # app too, add a route and point the probe at it, e.g.:  HEALTHCHECK_PATH: /health
+    # For application health, add a route and set HEALTHCHECK_PATH to it.
     PHP_OPCACHE_MEMORY_CONSUMPTION: 256
     PHP_OPCACHE_MAX_ACCELERATED_FILES: 32531
     PHP_OPCACHE_INTERNED_STRINGS_BUFFER: 32

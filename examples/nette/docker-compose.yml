@@ -1,12 +1,4 @@
-# Nette on all three web images. Install the app first (from the repo root):
-#   make -C examples nette
-#   docker compose -f examples/nette/docker-compose.yml up --build -d
-#   curl localhost:8081/   # fpm-nginx   (8082 fpm-apache, 8083 frankenphp)
-#   docker compose -f examples/nette/docker-compose.yml down
-#
-# Nette's docroot is www/. The app is mounted read-write (it writes to temp/ and
-# log/); on Linux match ownership via the image's USER_ID/GROUP_ID build args or `user:`.
-# PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
+# Setup and ports: examples/README.md; make -C examples nette.
 name: example-nette
 
 x-app: &app

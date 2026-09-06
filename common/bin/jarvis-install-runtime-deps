@@ -1,10 +1,10 @@
 #!/bin/sh
 # Install OS packages that stay (apt-get or apk), with cache cleanup.
 # Usage: jarvis-install-runtime-deps <pkg>...
+# Debian also accepts APT patterns, e.g. '~n^libicu[0-9]+$'. Quote patterns.
 set -eu
 me="${0##*/}"
 
-# validate input + usage
 case "${1:-}" in -h|--help) echo "usage: $me <pkg>..."; exit 0 ;; esac
 [ "$#" -ge 1 ] || { echo "usage: $me <pkg>..." >&2; exit 2; }
 

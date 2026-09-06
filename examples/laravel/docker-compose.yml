@@ -1,22 +1,10 @@
-# Laravel on all three web images. Install the app first (from the repo root):
-#   make -C examples laravel
-#   docker compose -f examples/laravel/docker-compose.yml up --build -d
-#   curl localhost:8081/   # fpm-nginx   (8082 fpm-apache, 8083 frankenphp)
-#   docker compose -f examples/laravel/docker-compose.yml down
-#
-# Laravel's docroot is public/. The app is mounted read-write (it writes to
-# storage/ and bootstrap/cache/); on Linux match ownership via the image's
-# USER_ID/GROUP_ID build args or `user:` here.
-# PHP is tuned via the images' env knobs (common/php.ini), not a mounted php.ini.
+# Setup and ports: examples/README.md; make -C examples laravel.
 name: example-laravel
 
 x-app: &app
   environment:
     SERVER_ROOT: /app/public
-    # The HEALTHCHECK defaults to /healthz (php-fpm ping) - proves the runtime is up
-    # but not the app. Laravel ships a built-in /up route (200 if the app boots; also
-    # dispatches a DiagnosingHealth event for DB/cache checks), so point the probe there
-    # to validate the app itself, not just the runtime.
+    # Probe Laravel boot through /up instead of the runtime-only /healthz.
     HEALTHCHECK_PATH: /up
     PHP_MEMORY_LIMIT: 256M
     PHP_OPCACHE_INTERNED_STRINGS_BUFFER: 16

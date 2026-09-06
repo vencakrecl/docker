@@ -5,7 +5,7 @@ Symfony, Laravel, and Nette run on all three web images (`fpm-nginx`, `fpm-apach
 against a real front controller: docroot via `SERVER_ROOT`, routing, the built-in
 `HEALTHCHECK`, and graceful `docker stop`. **WordPress is different**: it runs only on
 `fpm-nginx` and is built by **deriving** from that image (`wordpress/Dockerfile`) to show
-how to add extensions when you consume an image as a base (see below).
+how to consume a local image as a base (see below).
 
 Only the `docker-compose.yml` files (and `wordpress/Dockerfile`) are committed. The
 framework skeleton is installed on demand into `<framework>/app/` (git-ignored) by a
@@ -48,27 +48,33 @@ Targets: `make -C examples laravel`, `make -C examples symfony`, `make -C exampl
 container (no host PHP/Composer needed). Symfony/Laravel/Nette use ports 8081/8082/8083
 (one per image); WordPress uses only 8081 (`fpm-nginx`). Run one framework at a time.
 
-## Adding PHP extensions (WordPress shows the pattern)
+## PHP extensions
 
-The images ship a default extension set (`mysqli bcmath redis apcu ext-ds
-ext-opentelemetry`) on top of the stock `php:*-fpm` extensions. When an app needs more,
-the intended way is to **derive from the image** and add them with the baked-in
-`jarvis-*` commands - no repo build context, no build-args, no rebuilding the base from
-source. **WordPress demonstrates this**: `wordpress/Dockerfile` is `FROM fpm-nginx:<tag>`
-+ `jarvis-install-docker-ext gd` (mysqli is already a base default; see the root
-README/CLAUDE.md for the `jarvis-*` commands). Build the base first
-(`make fpm-nginx-alpine`), then `docker compose -f examples/wordpress/docker-compose.yml up
---build`.
+All three web images provide the mandatory and selected recommended extensions, in both
+Debian and Alpine variants. The PHP bases supply the shared modules; the image
+Dockerfiles additionally install `mysqli`, `pdo_mysql`, and `pdo_pgsql`. Production
+and dev goss suites check the modules and exercise locale formatting, ZIP archives,
+image codecs, serialization, and CLI signal handling.
 
-| Framework | Extensions beyond the base | Notes |
-| --------- | -------------------------- | ----- |
-| Symfony (skeleton) | none (uses polyfills) | works out of the box |
-| Nette (web-project) | none for the welcome page | |
-| Laravel | usually `pdo_*`, `mbstring` is bundled | fine for the welcome page; a DB app needs `pdo_mysql`/`pdo_pgsql` |
-| WordPress | `gd` (+ a DB; `mysqli` is a base default) | `gd` added by deriving (see `wordpress/Dockerfile`); a fresh core redirects to the installer until these are present |
+The shared defaults also include `intl`, `zip`, `gd`, `exif`, `pcntl`, `imagick`, and
+`igbinary`. GD supports PNG, JPEG, WebP, and FreeType; ImageMagick supports PNG, JPEG,
+and WebP. Igbinary is available to applications; serializer selection remains an
+application setting. PDF thumbnails require Ghostscript, which is not included.
 
-Symfony/Laravel/Nette build the images straight from the repo for a quick smoke test;
-WordPress is the one that shows consuming an image **as a base** and extending it.
+| Example | Required extension support | Additional support included |
+| --- | --- | --- |
+| [Laravel](https://laravel.com/docs/13.x/deployment#server-requirements) | ctype, curl, dom, fileinfo, filter, hash, mbstring, openssl, pcre, PDO, session, tokenizer, xml; `pdo_sqlite` for the default SQLite database | MySQL and PostgreSQL PDO drivers are also included; configure the database connection to use them. |
+| [Symfony skeleton](https://symfony.com/doc/current/setup.html#technical-requirements) | ctype, iconv, pcre, session, SimpleXML, tokenizer | `intl` for internationalization, plus MySQL and PostgreSQL PDO drivers. |
+| [Nette web-project](https://github.com/nette/web-project/blob/master/composer.json) | Shared PHP modules, including PDO for nette/database; the welcome page has no configured database | `intl` and `gd` for [Nette Utils](https://github.com/nette/utils/blob/master/composer.json) string/image features. |
+| [WordPress](https://make.wordpress.org/hosting/handbook/server-environment/#php-extensions) | json and mysqli; connects to the example MariaDB service | `imagick`, `gd`, `exif`, `intl`, `zip`, and `igbinary` are inherited from the base. |
+
+Symfony, Laravel, and Nette build the web images directly from this repository.
+WordPress uses a minimal downstream `wordpress/Dockerfile`; all extensions are
+already in the base. Build its base first with
+`make fpm-nginx-alpine`. Additional application packages and plugins can have their
+own extension requirements; for Composer applications, run
+`composer check-platform-reqs` using the application's actual PHP image after
+installing dependencies.
 
 ## Health status
 

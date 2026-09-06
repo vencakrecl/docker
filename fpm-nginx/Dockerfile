@@ -16,14 +16,75 @@ RUN case "$(jarvis-detect-os)" in \
 ###< RUNTIME DEPS
 
 ###> PHP EXTENSIONS
-RUN case "$(jarvis-detect-os)" in \
-      alpine) build_deps="$PHPIZE_DEPS unzip" ;; \
-      debian) build_deps="$PHPIZE_DEPS unzip" ;; \
+RUN set -f \
+ && case "$(jarvis-detect-os)" in \
+      alpine) \
+        # Shared extension toolchain and source extraction.
+        build_deps="$PHPIZE_DEPS unzip \
+          # pdo_pgsql
+          postgresql-dev \
+          # intl
+          icu-dev \
+          # zip
+          libzip-dev \
+          # gd: FreeType, JPEG, PNG, WebP
+          freetype-dev libjpeg-turbo-dev libpng-dev libwebp-dev \
+          # imagick
+          imagemagick-dev"; \
+        runtime_deps=" \
+          # pdo_pgsql
+          libpq \
+          # intl: libraries and full locale data
+          icu-libs icu-data-full \
+          # zip
+          libzip \
+          # gd: FreeType, JPEG, PNG, WebP
+          freetype libjpeg-turbo libpng libwebp \
+          # imagick: ImageMagick and JPEG/WebP coders
+          imagemagick imagemagick-jpeg imagemagick-webp" ;; \
+      debian) \
+        # Shared extension toolchain and source extraction.
+        build_deps="$PHPIZE_DEPS unzip \
+          # pdo_pgsql
+          libpq-dev \
+          # intl
+          libicu-dev \
+          # zip
+          libzip-dev \
+          # gd: FreeType, JPEG, PNG, WebP
+          libfreetype6-dev libjpeg62-turbo-dev libpng-dev libwebp-dev \
+          # imagick
+          libmagickwand-dev"; \
+        runtime_deps=' \
+          # pdo_pgsql
+          libpq5 \
+          # intl
+          ~n^libicu[0-9]+$ \
+          # zip
+          ~n^libzip[0-9]+$ \
+          # gd: FreeType, JPEG, WebP, PNG (including t64; exclude virtual packages)
+          libfreetype6 libjpeg62-turbo libwebp7 \
+          ?and(?not(?virtual),?name("^libpng[0-9]+-[0-9]+(t64)?$")) \
+          # imagick
+          imagemagick' ;; \
     esac \
+ && jarvis-install-runtime-deps $runtime_deps \
  && jarvis-install-build-deps $build_deps \
- && jarvis-install-docker-ext mysqli bcmath \
- && jarvis-install-pecl-ext redis-6.3.0 apcu-5.1.28 \
- && jarvis-install-pie-ext php-ds/ext-ds:2.0.0 open-telemetry/ext-opentelemetry:1.3.1 \
+ && jarvis-install-docker-ext \
+      mysqli \
+      pdo_mysql \
+      pdo_pgsql \
+      bcmath \
+      intl \
+      zip \
+      "gd --with-freetype --with-jpeg --with-webp" \
+      exif \
+      pcntl \
+ && jarvis-install-pie-ext \
+      igbinary/igbinary:@RC \
+      imagick/imagick \
+      phpredis/phpredis \
+      apcu/apcu \
  && jarvis-remove-build-deps
 ###< PHP EXTENSIONS
 
@@ -60,8 +121,7 @@ USER ${SERVER_USER}
 WORKDIR /var/www/html
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["healthcheck"]
-# s6 (PID 1) shuts down on SIGTERM, not the base's inherited SIGQUIT (else docker stop
-# hangs to SIGKILL). Per-service down-signal SIGQUIT drains in-flight requests.
+# s6 needs SIGTERM to shut down; services use SIGQUIT to drain requests.
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/init"]
 ###< ENTRYPOINT & RUNTIME METADATA
@@ -75,12 +135,31 @@ USER root
 RUN jarvis-install-composer \
  && jarvis-install-castor \
  && case "$(jarvis-detect-os)" in \
-      alpine) build_deps="$PHPIZE_DEPS unzip libtool linux-headers zlib-dev" runtime_deps="unzip" ;; \
-      debian) build_deps="$PHPIZE_DEPS unzip libtool zlib1g-dev" runtime_deps="unzip" ;; \
+      alpine) \
+        # Shared dev extension toolchain and source extraction.
+        build_deps="$PHPIZE_DEPS unzip libtool \
+          # xdebug: Linux headers
+          linux-headers \
+          # php-spx: compression
+          zlib-dev"; \
+        runtime_deps=" \
+          # Composer: ZIP archive extraction
+          unzip" ;; \
+      debian) \
+        # Shared dev extension toolchain and source extraction.
+        build_deps="$PHPIZE_DEPS unzip libtool \
+          # php-spx: compression
+          zlib1g-dev"; \
+        runtime_deps=" \
+          # Composer: ZIP archive extraction
+          unzip" ;; \
     esac \
  && jarvis-install-runtime-deps $runtime_deps \
  && jarvis-install-build-deps $build_deps \
- && jarvis-install-pie-ext xdebug/xdebug:3.5.3 pecl/pcov:1.0.12 noisebynorthwest/php-spx:0.4.22 \
+ && jarvis-install-pie-ext \
+      xdebug/xdebug \
+      pecl/pcov \
+      noisebynorthwest/php-spx \
  && jarvis-remove-build-deps
 ###< PHP EXTENSIONS
 

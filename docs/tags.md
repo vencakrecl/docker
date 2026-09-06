@@ -3,12 +3,12 @@
 # Naming & tags
 
 CI publishes to **GHCR**: `ghcr.io/<owner>/<image>:<tag>` (e.g.
-`ghcr.io/vencakrecl/fpm-nginx:8.4-alpine`). The registry prefix is the Makefile's
+`ghcr.io/vencakrecl/fpm-nginx:8.5-alpine`). The registry prefix is the Makefile's
 `REGISTRY` variable (empty for local builds).
 
 When the repo variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN` are set, CI
 also mirrors the same tags to **Docker Hub**: `docker.io/<DOCKERHUB_USERNAME>/<image>:<tag>`
-(e.g. `docker.io/vencakrecl/fpm-nginx:8.4-alpine`). Unset = GHCR only.
+(e.g. `docker.io/vencakrecl/fpm-nginx:8.5-alpine`). Unset = GHCR only.
 
 ## Tags
 
@@ -16,8 +16,8 @@ Tag format is `[<version>-]<os>`, where `<os>` is `debian` or `alpine`.
 
 | Image                                   | Tag format              | Examples                                 |
 |-----------------------------------------|-------------------------|------------------------------------------|
-| `fpm-nginx`, `fpm-apache`, `frankenphp` | `<php-version>-<os>`    | `8.3-debian`, `8.3-alpine`, `8.4-debian` |
-| web images, **dev variant**             | `<php-version>-<os>-dev` | `8.4-alpine-dev`, `8.4-debian-dev` (adds composer, castor, xdebug, pcov, spx) |
+| `fpm-nginx`, `fpm-apache`, `frankenphp` | `<php-version>-<os>`    | `8.3-debian`, `8.3-alpine`, `8.5-debian` |
+| web images, **dev variant**             | `<php-version>-<os>-dev` | `8.5-alpine-dev`, `8.5-debian-dev` (adds composer, castor, xdebug, pcov, spx) |
 | `dind`                                  | `<docker-version>-rootless` | `29-rootless` (single variant; OS tag is meaningless here) |
 | `dind`, **cloud variant**               | `<docker-version>-rootless-<cloud>` | `29-rootless-aws`, `29-rootless-gcloud`, `29-rootless-azure` (adds that cloud's CLI) |
 
