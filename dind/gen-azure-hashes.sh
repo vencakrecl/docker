@@ -10,12 +10,12 @@
 #   docker run --rm \
 #     -v "$PWD/dind/gen-azure-hashes.sh:/gen.sh:ro" \
 #     -v "$PWD/dind:/out" \
-#     -e AZURE_CLI_VERSION=2.88.0 \
+#     -e AZURE_CLI_VERSION=2.90.0 \
 #     alpine:3.24 sh /gen.sh
 #
 # (Bump the alpine tag to match the dind base's Alpine version when it changes.)
 set -eu
-AZURE_CLI_VERSION="${AZURE_CLI_VERSION:-2.88.0}"
+AZURE_CLI_VERSION="${AZURE_CLI_VERSION:-2.90.0}"
 
 apk add --no-cache python3 py3-pip >/dev/null
 apk add --no-cache --virtual .bd gcc musl-dev python3-dev libffi-dev openssl-dev linux-headers make cargo >/dev/null
