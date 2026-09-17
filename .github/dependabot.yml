@@ -15,16 +15,12 @@ updates:
       prefix: chore
 
   # Regenerate the Azure lockfile with dind/gen-azure-hashes.sh.
-  # Keep paramiko below 4 while azure-cli requires it; version updates are disabled.
+  # Allow security updates only; routine version updates use the generator.
   - package-ecosystem: pip
     directory: /dind
     schedule:
       interval: weekly
     open-pull-requests-limit: 0
-    ignore:
-      - dependency-name: paramiko
-        versions:
-          - ">=4.0.0"
     labels:
       - dependencies
     commit-message:
