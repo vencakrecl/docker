@@ -182,6 +182,11 @@ RUN jarvis-install-composer \
 COPY common/dev.ini ${PHP_INI_DIR}/conf.d/zz-dev.ini
 ###< PHP & FPM CONFIGURATION
 
+ENV CASTOR_CACHE_DIR=/var/cache/castor
+RUN mkdir -p "$CASTOR_CACHE_DIR" \
+ && chown "$SERVER_USER:$SERVER_USER" "$CASTOR_CACHE_DIR" \
+ && chmod 0700 "$CASTOR_CACHE_DIR"
+
 USER ${SERVER_USER}
 ###< DEV IMAGE
 

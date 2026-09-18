@@ -138,6 +138,11 @@ like the shared php.ini. xdebug is **off** by default (zero overhead until opted
 | `SPX_HTTP_KEY` | `spx.http_key` | `dev` |
 | `SPX_HTTP_IP_WHITELIST` | `spx.http_ip_whitelist` | `127.0.0.1` |
 
+Castor uses `CASTOR_CACHE_DIR=/var/cache/castor`, a private cache directory owned by
+`SERVER_USER`. This keeps its startup cache writable even when the user’s home or
+the mounted application directory is read-only. Override `CASTOR_CACHE_DIR` to use
+a different writable location.
+
 Enable xdebug per run, e.g. `-e XDEBUG_MODE=debug,coverage`. Don't drive coverage with
 both pcov and xdebug at once. Tighten `SPX_HTTP_KEY` / `SPX_HTTP_IP_WHITELIST` before
 exposing the SPX web UI. (xdebug and SPX also honour their own native env vars -
