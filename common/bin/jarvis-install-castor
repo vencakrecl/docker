@@ -8,9 +8,9 @@ case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
 [ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
 
 # renovate: datasource=github-releases depName=jolicode/castor
-CASTOR_VERSION="${CASTOR_VERSION:-1.7.0}"
-CASTOR_SHA256_AMD64="${CASTOR_SHA256_AMD64:-4ee2df3d779d44b750f0c38375ccc4c1bd784965a1624dda6e30402576d0dc52}"
-CASTOR_SHA256_ARM64="${CASTOR_SHA256_ARM64:-b140d82cd001fe08fcffe8ff2eaa82b1ba24286deeeeb671d5d20eb9e94c99b1}"
+CASTOR_VERSION="${CASTOR_VERSION:-1.8.0}"
+CASTOR_SHA256_AMD64="${CASTOR_SHA256_AMD64:-006f2a260d4bea6c9e02029a3eac8c31edb4152e113c1a7366f5875a6f2e256e}"
+CASTOR_SHA256_ARM64="${CASTOR_SHA256_ARM64:-99aada0124092d951a1e9930da8791306780bd8203fbc5dbd30a8b4a002d069d}"
 
 # _fetch <url> <dest> - download, bootstrapping curl + CA certs first if missing.
 _fetch() {
