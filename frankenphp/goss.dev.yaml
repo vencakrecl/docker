@@ -47,6 +47,7 @@ command:
   castor:
     exec: castor --version
     exit-status: 0
+    stdout: ["castor v"]
   # xdebug ships OFF by default (zero overhead) ...
   xdebug-off-by-default:
     exec: php -r 'echo ini_get("xdebug.mode");'
