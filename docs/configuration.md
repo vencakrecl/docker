@@ -127,6 +127,10 @@ Only in the `-dev` image variant (tag `<php>-<os>-dev`), which layers the dev to
 onto the lean image. `common/dev.ini` tunes the three dev extensions; env-overridable
 like the shared php.ini. xdebug is **off** by default (zero overhead until opted in).
 
+All dev images use an Xdebug alpha release and omit PCOV and SPX until they
+support PHP 8.6. `PCOV_ENABLED` and `SPX_*` settings have no effect in those images;
+use `XDEBUG_MODE=coverage` for code coverage.
+
 | Env var | Directive | Default |
 |---------|-----------|---------|
 | `XDEBUG_MODE` | `xdebug.mode` | `off` |
