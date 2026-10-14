@@ -20,8 +20,8 @@ Requires `goss` + `dgoss` on `PATH`. Each image's checks live in its
 (selected via `GOSS_FILE`), which add a `<cli> --version` probe to the base checks.
 
 PHP extension checks use a single `php -m` command per suite to assert the expected
-enabled module names. Dev suites (`<image>/goss.dev.yaml`) also check Xdebug, PCOV,
-and SPX.
+enabled module names. Dev suites (`<image>/goss.dev.yaml`) also check Xdebug. PCOV and SPX checks
+are deferred until their installers support PHP 8.6.
 
 ## CI
 
@@ -30,6 +30,10 @@ CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on push/PR a
 (`alpine` + `debian`), each building and goss-testing that one variant; `dind` is a
 separate per-arch job. The PHP version set is per image - a `matrix` job emits it as
 JSON so build and push share one list.
+
+All web images build PHP 8.5. The FPM images also build `8.6-rc`, with the same
+production/dev, OS, architecture, and runtime-test matrix; FrankenPHP is awaiting
+upstream PHP 8.6 base images.
 
 On push to **main**, each job's third step pushes the **tested** image to **GHCR**
 under a per-arch tag; the `release-php-image`/`release-dind-image` jobs then assemble the
