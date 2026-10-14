@@ -24,7 +24,6 @@ command:
       - "/^mysqli$/"
       - "/^openssl$/"
       - "/^pcntl$/"
-      - "/^pcov$/"
       - "/^pcre$/"
       - "/^PDO$/"
       - "/^pdo_mysql$/"
@@ -33,13 +32,13 @@ command:
       - "/^redis$/"
       - "/^session$/"
       - "/^SimpleXML$/"
-      - "/^SPX$/"
       - "/^tokenizer$/"
       - "/^xdebug$/"
       - "/^xml$/"
       - "/^xmlreader$/"
       - "/^xmlwriter$/"
       - "/^zip$/"
+  # Restore PCOV/SPX checks when their installers support PHP 8.6.
   composer:
     exec: composer --version --no-interaction
     exit-status: 0

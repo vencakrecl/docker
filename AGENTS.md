@@ -211,7 +211,9 @@ Variables: `PHP_VERSION` (Makefile default 8.5), `DOCKER_VERSION` (default 29),
 `REGISTRY` (tag prefix), `PLATFORM` (empty = host arch), `OUTPUT` (default `--load`),
 and `CACHE` (additional buildx cache flags). The web Dockerfiles default to PHP 8.5
 when built directly; the CI matrix also selects PHP 8.5. Keep these defaults aligned
-when changing the supported PHP version.
+when changing the default PHP version. CI additionally selects `8.6-rc` for
+fpm-nginx and fpm-apache (both OSes, architectures, and prod/dev variants).
+FrankenPHP remains on 8.5 until upstream publishes PHP 8.6 base images.
 
 Local builds load one platform into Docker. Multi-platform publishing is supported
 by setting `OUTPUT=--push PLATFORM=linux/amd64,linux/arm64 REGISTRY=<registry>/`.
@@ -529,11 +531,9 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
   `docker run --user $(id -u):$(id -g)` (s6-overlay fixes its dir ownership on start).
 - **PHP extensions:** all three web images install the same defaults with explicit
   `jarvis-*` calls. Bundled extensions: `mysqli`, `pdo_mysql`, `pdo_pgsql`, `bcmath`,
-  `intl`, `zip`, `gd`, `exif`, and `pcntl`. PIE installs `igbinary/igbinary`,
-  `imagick/imagick`, `phpredis/phpredis`, and `apcu/apcu`, without version pins in
-  the Dockerfiles.
-  `igbinary/igbinary:@RC` allows release candidates because PIE currently has no
-  compatible stable release.
+  `intl`, `zip`, `gd`, `exif`, and `pcntl`. `jarvis-install-pie-ext` installs pinned revisions directly from each Dockerfile for
+  `igbinary/igbinary`, `imagick/imagick`, `phpredis/phpredis`, and `apcu/apcu`.
+  PHP 8.5 and 8.6 use the same pinned upstream revisions until compatible stable releases exist.
   `ds` is not installed.
   - Install runtime packages before removable build dependencies. PostgreSQL, ICU,
     ZIP, GD, and ImageMagick need external libraries. On Debian, retain installed
@@ -544,11 +544,10 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
     Alpine needs the ImageMagick JPEG/WebP coder packages in addition to the core
     runtime. Ghostscript is not included, so PDF thumbnail generation is not promised.
   - Production and dev goss suites check enabled extensions with a single `php -m`
-    command and exact module-name matches. Dev suites also include Xdebug, PCOV,
-    and SPX in that list.
+    command and exact module-name matches. Dev suites also include Xdebug; PCOV/SPX checks are deferred.
   - `igbinary` is installed, but applications must choose their serializer. Installing
     it does not automatically enable optional igbinary support in other extensions.
-  - The dev stages additionally install Composer, Castor, Xdebug, PCOV, and SPX.
+  - The dev stages additionally install Composer, Castor, and Xdebug (alpha).
     The WordPress example inherits all runtime extensions without reinstalling GD.
   - Downstream applications can add more extensions by deriving from an image and
     using `jarvis-install-docker-ext`, then `jarvis-install-pie-ext`, with
@@ -600,17 +599,16 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
 The three web images (`fpm-nginx`, `fpm-apache`, `frankenphp`) have a `dev` build stage
 (`make <image>-dev[-<os>]`, tag `<php>-<os>-dev`) that layers a development toolbox onto
 the lean prod image: **composer** + **castor** (binaries) and the **xdebug**, **pcov**,
-and **spx** extensions. Not applied to `dind` (not a PHP image).
+and **spx** extensions (PCOV/SPX are temporarily commented out until PHP 8.6 support). Not applied to `dind` (not a PHP image).
 
 - **Structure:** multi-stage (`base`/`dev`/`prod`) - see Layout. `dev` runs as `root`
   to install, then resets `USER ${SERVER_USER}`; it inherits the prod ENTRYPOINT/
   HEALTHCHECK/etc. Building without `--target` still gives the lean image (the empty
   `prod` stage is last).
 - **Extensions installed explicitly.** The `dev` stage runs `jarvis-install-composer`,
-  `jarvis-install-castor`, then `jarvis-install-pie-ext xdebug/xdebug pecl/pcov
-  noisebynorthwest/php-spx` (no version constraints; `jarvis-install-pie-ext` installs the
-  PIE binary itself if absent). pcov has no native PIE package, so it uses PIE's `pecl/`
-  bridge (`pecl/pcov`); xdebug and spx have native PIE packages.
+  `jarvis-install-castor`, then `jarvis-install-pie-ext` with `xdebug/xdebug:@alpha`.
+  PCOV (`pecl/pcov`) and SPX (`noisebynorthwest/php-spx`) arguments are commented
+  out in all Dockerfiles until PHP 8.6 support is available.
 - **Per-distro packages via a `jarvis-detect-os` case.** The `RUN` sets two shell vars:
   `build_deps` (removable) - `$PHPIZE_DEPS unzip libtool` (the pecl/pie toolchain) plus the headers
   xdebug/spx compile against (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`) - and

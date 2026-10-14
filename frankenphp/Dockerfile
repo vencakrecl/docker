@@ -14,7 +14,9 @@ RUN set -f \
  && case "$(jarvis-detect-os)" in \
       alpine) \
         # Shared extension toolchain and source extraction.
-        build_deps="$PHPIZE_DEPS unzip \
+        build_deps="$PHPIZE_DEPS unzip libtool \
+          # mbstring
+          oniguruma-dev \
           # pdo_pgsql
           postgresql-dev \
           # intl
@@ -26,6 +28,8 @@ RUN set -f \
           # imagick
           imagemagick-dev"; \
         runtime_deps=" \
+          # mbstring
+          oniguruma \
           # pdo_pgsql
           libpq \
           # intl: libraries and full locale data
@@ -38,7 +42,9 @@ RUN set -f \
           imagemagick imagemagick-jpeg imagemagick-webp" ;; \
       debian) \
         # Shared extension toolchain and source extraction.
-        build_deps="$PHPIZE_DEPS unzip \
+        build_deps="$PHPIZE_DEPS unzip libtool \
+          # mbstring
+          libonig-dev \
           # pdo_pgsql
           libpq-dev \
           # intl
@@ -50,6 +56,8 @@ RUN set -f \
           # imagick
           libmagickwand-dev"; \
         runtime_deps=' \
+          # mbstring
+          libonig5 \
           # pdo_pgsql
           libpq5 \
           # intl
@@ -64,7 +72,9 @@ RUN set -f \
     esac \
  && jarvis-install-runtime-deps $runtime_deps \
  && jarvis-install-build-deps $build_deps \
+ && mbstring="$(php -r 'echo extension_loaded("mbstring") ? "" : "mbstring";')" \
  && jarvis-install-docker-ext \
+      $mbstring \
       mysqli \
       pdo_mysql \
       pdo_pgsql \
@@ -75,10 +85,10 @@ RUN set -f \
       exif \
       pcntl \
  && jarvis-install-pie-ext \
-      igbinary/igbinary:@RC \
-      imagick/imagick \
-      phpredis/phpredis \
-      apcu/apcu \
+      'igbinary/igbinary:dev-master#2b1f5d62e3037b07c2a46499ac32091cdb41fb40' \
+      'imagick/imagick:dev-master#b580a705e2c879924bfaee2e1ed3a93c9cb3fcfb' \
+      'apcu/apcu:dev-master#90899684be91c4f750512c2f840f487286ecb807' \
+      'phpredis/phpredis:dev-develop#810984b5a5aedc37e3ff3c19e33af8dc08c8290f' \
  && jarvis-remove-build-deps
 ###< PHP EXTENSIONS
 
@@ -146,9 +156,10 @@ RUN jarvis-install-composer \
  && jarvis-install-runtime-deps $runtime_deps \
  && jarvis-install-build-deps $build_deps \
  && jarvis-install-pie-ext \
-      xdebug/xdebug \
-      pecl/pcov \
-      noisebynorthwest/php-spx \
+      'xdebug/xdebug:@alpha' \
+      # Restore once compatible with PHP 8.6.
+      # pecl/pcov \
+      # noisebynorthwest/php-spx \
  && jarvis-remove-build-deps
 ###< PHP EXTENSIONS
 
