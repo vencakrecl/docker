@@ -21,6 +21,21 @@ Tag format is `[<version>-]<os>`, where `<os>` is `debian` or `alpine`.
 | `dind`                                  | `<docker-version>-rootless` | `29-rootless` (single variant; OS tag is meaningless here) |
 | `dind`, **cloud variant**               | `<docker-version>-rootless-<cloud>` | `29-rootless-aws`, `29-rootless-gcloud`, `29-rootless-azure` (adds that cloud's CLI) |
 
+## PHP 8.6 release candidates
+
+`fpm-nginx` and `fpm-apache` also build PHP **8.6 RC** images, with tags
+`8.6-rc-debian`, `8.6-rc-alpine`, `8.6-rc-debian-dev`, and `8.6-rc-alpine-dev`.
+CI builds and tests both architectures before publishing. These tags track the
+upstream `php:8.6-rc-fpm` / `php:8.6-rc-fpm-alpine` release candidates and are
+intended for compatibility testing. PHP 8.5 remains the default.
+
+All dev variants include Composer, Castor, and Xdebug (alpha). PCOV and SPX
+are omitted until upstream supports PHP 8.6. The production extensions use pinned
+upstream revisions containing unreleased compatibility fixes.
+
+FrankenPHP is excluded from the 8.6 RC matrix because upstream does not publish
+PHP 8.6 base images yet.
+
 ## Architecture
 
 Architecture is **not** part of the tag. Each tag is a manifest list that serves both
