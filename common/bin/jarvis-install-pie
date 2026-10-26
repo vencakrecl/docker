@@ -8,8 +8,8 @@ case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
 [ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
 
 # renovate: datasource=github-releases depName=php/pie
-PIE_VERSION="${PIE_VERSION:-1.5.2}"
-PIE_SHA256="${PIE_SHA256:-fe70c59738cf56ec00a818cf9cb9593da171aac86f5f1f859995b8839dfd2cc7}"
+PIE_VERSION="${PIE_VERSION:-1.5.3}"
+PIE_SHA256="${PIE_SHA256:-34a1315073b6089d4cdf4cc5a8295ecc6d36cfde683ef785582f7da0d74f127b}"
 
 # _fetch <url> <dest> - download, bootstrapping curl + CA certs first if missing.
 _fetch() {
