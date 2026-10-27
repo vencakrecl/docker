@@ -47,9 +47,14 @@ the `t64` suffix and excludes virtual package names such as `libpng12-0`.
 Quote patterns passed directly to the command; use `set -f` before expanding a
 whitespace-separated package list to disable shell filename expansion.
 
-Production and dev Dockerfiles pass extension package names to PIE without version
-pins, so PIE resolves compatible releases at build time. `igbinary/igbinary:@RC`
-allows release candidates because PIE currently has no compatible stable release.
+All three web Dockerfiles pass pinned upstream igbinary, imagick, apcu, and redis
+revisions directly to `jarvis-install-pie-ext`, for both PHP 8.5 and 8.6.
+These temporary pins remain until compatible stable releases exist. Dev stages
+request `xdebug/xdebug:@alpha` directly. PCOV and SPX installer arguments are
+commented out in every Dockerfile until they support PHP 8.6.
+
+mbstring is built from bundled PHP source when absent from the base image
+(the 8.6 RC bases omit it), with Oniguruma installed as a runtime dependency.
 
 Prefer `jarvis-install-docker-ext` → `jarvis-install-pie-ext` →
 `jarvis-install-pecl-ext`. The current images use bundled PHP source and PIE only;
@@ -85,6 +90,19 @@ make dind               # plain rootless dind
 make dind-aws           # dind + AWS CLI (also dind-gcloud, dind-azure)
 make help               # list targets
 ```
+
+To build PHP 8.6 release candidates for compatibility testing:
+
+```sh
+make fpm-nginx fpm-apache PHP_VERSION=8.6-rc
+make fpm-nginx-dev fpm-apache-dev PHP_VERSION=8.6-rc
+make test-fpm-nginx test-fpm-apache PHP_VERSION=8.6-rc
+make test-dev-fpm-nginx test-dev-fpm-apache PHP_VERSION=8.6-rc
+```
+
+Both OS variants use the upstream `php:8.6-rc-fpm` base tags. FrankenPHP has
+no upstream PHP 8.6 images yet, so the aggregate `build` and `dev` targets cannot
+be used with `PHP_VERSION=8.6-rc`. See [the RC tags](tags.md#php-86-release-candidates).
 
 Overridable variables: `PHP_VERSION` (default 8.5), `DOCKER_VERSION` (default 29,
 dind), `REGISTRY` (tag prefix, empty = local), `PLATFORM` (empty = host arch).
