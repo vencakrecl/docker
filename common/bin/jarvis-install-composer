@@ -8,8 +8,8 @@ case "${1:-}" in -h|--help) echo "usage: $me"; exit 0 ;; esac
 [ "$#" -eq 0 ] || { echo "usage: $me" >&2; exit 2; }
 
 # renovate: datasource=github-releases depName=composer/composer
-COMPOSER_VERSION="${COMPOSER_VERSION:-2.10.3}"
-COMPOSER_SHA256="${COMPOSER_SHA256:-7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6}"
+COMPOSER_VERSION="${COMPOSER_VERSION:-2.11.1}"
+COMPOSER_SHA256="${COMPOSER_SHA256:-6f1b891e1d4927d62740276c540fb490e47689e19e102c49e8da849794882f8c}"
 
 # _fetch <url> <dest> - download, bootstrapping curl + CA certs first if missing.
 _fetch() {
