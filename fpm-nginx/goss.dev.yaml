@@ -24,7 +24,6 @@ command:
       - "/^mysqli$/"
       - "/^openssl$/"
       - "/^pcntl$/"
-      - "/^pcov$/"
       - "/^pcre$/"
       - "/^PDO$/"
       - "/^pdo_mysql$/"
@@ -40,6 +39,7 @@ command:
       - "/^xmlreader$/"
       - "/^xmlwriter$/"
       - "/^zip$/"
+  # Restore the PCOV check when its installer supports PHP 8.6.
   composer:
     exec: composer --version --no-interaction
     exit-status: 0

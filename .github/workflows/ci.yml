@@ -35,7 +35,9 @@ jobs:
           echo 'targets=[
           {"image":"fpm-nginx","php":"8.5"},
           {"image":"fpm-apache","php":"8.5"},
-          {"image":"frankenphp","php":"8.5"}
+          {"image":"frankenphp","php":"8.5"},
+          {"image":"fpm-nginx","php":"8.6-rc"},
+          {"image":"fpm-apache","php":"8.6-rc"}
           ]' >> "$GITHUB_OUTPUT"
 
   build-php-image:
