@@ -17,7 +17,7 @@ Tag format is `[<version>-]<os>`, where `<os>` is `debian` or `alpine`.
 | Image                                   | Tag format              | Examples                                 |
 |-----------------------------------------|-------------------------|------------------------------------------|
 | `fpm-nginx`, `fpm-apache`, `frankenphp` | `<php-version>-<os>`    | `8.3-debian`, `8.3-alpine`, `8.5-debian` |
-| web images, **dev variant**             | `<php-version>-<os>-dev` | `8.5-alpine-dev`, `8.5-debian-dev` (adds composer, castor, xdebug, pcov, spx) |
+| web images, **dev variant**             | `<php-version>-<os>-dev` | `8.5-alpine-dev`, `8.5-debian-dev` (adds composer, castor, xdebug, spx) |
 | `dind`                                  | `<docker-version>-rootless` | `29-rootless` (single variant; OS tag is meaningless here) |
 | `dind`, **cloud variant**               | `<docker-version>-rootless-<cloud>` | `29-rootless-aws`, `29-rootless-gcloud`, `29-rootless-azure` (adds that cloud's CLI) |
 
@@ -29,9 +29,9 @@ CI builds and tests both architectures before publishing. These tags track the
 upstream `php:8.6-rc-fpm` / `php:8.6-rc-fpm-alpine` release candidates and are
 intended for compatibility testing. PHP 8.5 remains the default.
 
-All dev variants include Composer, Castor, and Xdebug (alpha). PCOV and SPX
-are omitted until upstream supports PHP 8.6. The production extensions use pinned
-upstream revisions containing unreleased compatibility fixes.
+All dev variants include Composer, Castor, Xdebug (alpha), and a pinned SPX 0.5
+development revision. PCOV remains disabled pending PHP 8.6 support. The production
+extensions use pinned upstream revisions containing unreleased compatibility fixes.
 
 FrankenPHP is excluded from the 8.6 RC matrix because upstream does not publish
 PHP 8.6 base images yet.
