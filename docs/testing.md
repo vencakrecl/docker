@@ -20,8 +20,7 @@ Requires `goss` + `dgoss` on `PATH`. Each image's checks live in its
 (selected via `GOSS_FILE`), which add a `<cli> --version` probe to the base checks.
 
 PHP extension checks use a single `php -m` command per suite to assert the expected
-enabled module names. Dev suites (`<image>/goss.dev.yaml`) also check Xdebug. PCOV and SPX checks
-are deferred until their installers support PHP 8.6.
+enabled module names. Dev suites (`<image>/goss.dev.yaml`) also check Xdebug and SPX.
 
 ## CI
 

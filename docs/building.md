@@ -50,8 +50,8 @@ whitespace-separated package list to disable shell filename expansion.
 All three web Dockerfiles pass pinned upstream igbinary, imagick, apcu, and redis
 revisions directly to `jarvis-install-pie-ext`, for both PHP 8.5 and 8.6.
 These temporary pins remain until compatible stable releases exist. Dev stages
-request `xdebug/xdebug:@alpha` directly. PCOV and SPX installer arguments are
-commented out in every Dockerfile until they support PHP 8.6.
+request `xdebug/xdebug:@alpha` directly and pin SPX to a commit on its 0.5
+development branch. PCOV remains disabled pending PHP 8.6 support.
 
 mbstring is built from bundled PHP source when absent from the base image
 (the 8.6 RC bases omit it), with Oniguruma installed as a runtime dependency.

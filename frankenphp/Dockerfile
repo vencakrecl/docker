@@ -157,9 +157,9 @@ RUN jarvis-install-composer \
  && jarvis-install-build-deps $build_deps \
  && jarvis-install-pie-ext \
       'xdebug/xdebug:@alpha' \
+      'noisebynorthwest/php-spx:v0.5.x-dev#ef1155c0daffd99ebc4ef596633b0d7d699f9e12' \
       # Restore once compatible with PHP 8.6.
       # pecl/pcov \
-      # noisebynorthwest/php-spx \
  && jarvis-remove-build-deps
 ###< PHP EXTENSIONS
 

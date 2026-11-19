@@ -544,7 +544,7 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
     Alpine needs the ImageMagick JPEG/WebP coder packages in addition to the core
     runtime. Ghostscript is not included, so PDF thumbnail generation is not promised.
   - Production and dev goss suites check enabled extensions with a single `php -m`
-    command and exact module-name matches. Dev suites also include Xdebug; PCOV/SPX checks are deferred.
+    command and exact module-name matches. Dev suites also include Xdebug and SPX.
   - `igbinary` is installed, but applications must choose their serializer. Installing
     it does not automatically enable optional igbinary support in other extensions.
   - The dev stages additionally install Composer, Castor, and Xdebug (alpha).
@@ -598,17 +598,17 @@ from nginx/apache to keep a tag's behaviour identical across OS. Not applied to 
 
 The three web images (`fpm-nginx`, `fpm-apache`, `frankenphp`) have a `dev` build stage
 (`make <image>-dev[-<os>]`, tag `<php>-<os>-dev`) that layers a development toolbox onto
-the lean prod image: **composer** + **castor** (binaries) and the **xdebug**, **pcov**,
-and **spx** extensions (PCOV/SPX are temporarily commented out until PHP 8.6 support). Not applied to `dind` (not a PHP image).
+the lean prod image: **composer** and **castor** (binaries) plus the **xdebug** and
+**spx** extensions. This toolbox is specific to the web images.
 
 - **Structure:** multi-stage (`base`/`dev`/`prod`) - see Layout. `dev` runs as `root`
   to install, then resets `USER ${SERVER_USER}`; it inherits the prod ENTRYPOINT/
   HEALTHCHECK/etc. Building without `--target` still gives the lean image (the empty
   `prod` stage is last).
 - **Extensions installed explicitly.** The `dev` stage runs `jarvis-install-composer`,
-  `jarvis-install-castor`, then `jarvis-install-pie-ext` with `xdebug/xdebug:@alpha`.
-  PCOV (`pecl/pcov`) and SPX (`noisebynorthwest/php-spx`) arguments are commented
-  out in all Dockerfiles until PHP 8.6 support is available.
+  `jarvis-install-castor`, then `jarvis-install-pie-ext` with `xdebug/xdebug:@alpha`
+  and a pinned SPX 0.5 development revision. PCOV (`pecl/pcov`) remains commented
+  out until PHP 8.6 support is available.
 - **Per-distro packages via a `jarvis-detect-os` case.** The `RUN` sets two shell vars:
   `build_deps` (removable) - `$PHPIZE_DEPS unzip libtool` (the pecl/pie toolchain) plus the headers
   xdebug/spx compile against (Alpine `linux-headers zlib-dev`, Debian `zlib1g-dev`) - and
