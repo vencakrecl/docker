@@ -31,8 +31,8 @@ docker pull docker.io/vencakrecl/fpm-nginx:8.5-alpine
 make fpm-nginx-alpine
 ```
 
-PHP 8.6 RC testing is available for `fpm-nginx` and `fpm-apache` with
-`PHP_VERSION=8.6-rc`; see [RC tags](docs/tags.md#php-86-release-candidates).
+PHP 8.6 builds are available for `fpm-nginx` and `fpm-apache` with
+`PHP_VERSION=8.6`; see [PHP 8.6 tags](docs/tags.md#php-86).
 
 ## Documentation
 

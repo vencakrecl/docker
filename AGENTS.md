@@ -211,9 +211,9 @@ Variables: `PHP_VERSION` (Makefile default 8.5), `DOCKER_VERSION` (default 29),
 `REGISTRY` (tag prefix), `PLATFORM` (empty = host arch), `OUTPUT` (default `--load`),
 and `CACHE` (additional buildx cache flags). The web Dockerfiles default to PHP 8.5
 when built directly; the CI matrix also selects PHP 8.5. Keep these defaults aligned
-when changing the default PHP version. CI additionally selects `8.6-rc` for
+when changing the default PHP version. CI additionally selects `8.6` for
 fpm-nginx and fpm-apache (both OSes, architectures, and prod/dev variants).
-FrankenPHP remains on 8.5 until upstream publishes PHP 8.6 base images.
+The FrankenPHP CI matrix currently selects PHP 8.5.
 
 Local builds load one platform into Docker. Multi-platform publishing is supported
 by setting `OUTPUT=--push PLATFORM=linux/amd64,linux/arm64 REGISTRY=<registry>/`.
